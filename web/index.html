@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Remote Control</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+            height: 80vh;
+        }
+
+        .video-section {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .control-section {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        #videoStream {
+            width: 100%;
+            height: 400px;
+            background: #000;
+            border-radius: 5px;
+            object-fit: cover;
+        }
+
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .status.waiting {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .status.active {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .access-section {
+            margin-bottom: 30px;
+        }
+
+        .request-btn {
+            width: 100%;
+            padding: 15px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .request-btn.available {
+            background: #007bff;
+            color: white;
+        }
+
+        .request-btn.available:hover {
+            background: #0056b3;
+        }
+
+        .request-btn:disabled {
+            background: #6c757d;
+            color: white;
+            cursor: not-allowed;
+        }
+
+        .controls {
+            flex: 1;
+        }
+
+        .control-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .control-btn {
+            padding: 15px;
+            font-size: 14px;
+            font-weight: bold;
+            border: 2px solid #dee2e6;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: white;
+        }
+
+        .control-btn:enabled {
+            border-color: #28a745;
+            color: #28a745;
+        }
+
+        .control-btn:enabled:hover {
+            background: #28a745;
+            color: white;
+            transform: scale(1.05);
+        }
+
+        .control-btn:enabled:active {
+            transform: scale(0.95);
+        }
+
+        .control-btn:disabled {
+            color: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .control-btn.up {
+            grid-column: 2;
+        }
+
+        .control-btn.down {
+            grid-column: 2;
+        }
+
+        .control-btn.left {
+            grid-column: 1;
+        }
+
+        .control-btn.right {
+            grid-column: 3;
+        }
+
+        .fire-btn {
+            width: 100%;
+            padding: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            border: 2px solid #dc3545;
+            border-radius: 5px;
+            background: white;
+            color: #dc3545;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 10px;
+        }
+
+        .fire-btn:enabled:hover {
+            background: #dc3545;
+            color: white;
+            transform: scale(1.05);
+        }
+
+        .fire-btn:enabled:active {
+            transform: scale(0.95);
+        }
+
+        .fire-btn:disabled {
+            border-color: #6c757d;
+            color: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .release-btn {
+            width: 100%;
+            padding: 10px;
+            margin-top: 20px;
+            background: #ffc107;
+            color: #212529;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .release-btn:hover {
+            background: #e0a800;
+        }
+
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 2px 0;
+        }
+
+        .log-entry.info {
+            color: #007bff;
+        }
+
+        .log-entry.success {
+            color: #28a745;
+        }
+
+        .log-entry.warning {
+            color: #ffc107;
+        }
+
+        .log-entry.error {
+            color: #dc3545;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+
+            .control-section {
+                order: -1;
+            }
+        }
+    </style>
+</head>
+<body>
+<h1>🎮 WebRTC Remote Control</h1>
+
+<div class="container">
+    <div class="video-section">
+        <video id="videoStream" autoplay muted playsinline>
+            Your browser does not support video streaming.
+        </video>
+
+        <div class="log" id="actionLog">
+            <div class="log-entry info">Waiting for connection...</div>
+        </div>
+    </div>
+
+    <div class="control-section">
+        <div class="access-section">
+            <button id="requestAccessBtn" class="request-btn available">
+                🎯 Request Access
+            </button>
+
+            <div id="statusDisplay" class="status disconnected">
+                Disconnected
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="control-grid">
+                <button id="upBtn" class="control-btn up" disabled>↑ UP</button>
+                <button id="leftBtn" class="control-btn left" disabled>← LEFT</button>
+                <button id="rightBtn" class="control-btn right" disabled>RIGHT →</button>
+                <button id="downBtn" class="control-btn down" disabled>↓ DOWN</button>
+            </div>
+
+            <button id="fireBtn" class="fire-btn" disabled>🔥 FIRE</button>
+
+            <button id="releaseBtn" class="release-btn" style="display: none;">
+                Release Control
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    class WSController {
+        constructor() {
+            this.ws = null;
+            this.pc = null;
+            this.hasControl = false;
+            this.user_id = 0;
+            this.isRequested = false;
+            this.queuePosition = 0;
+
+            this.initializeElements();
+            this.initializeWebSocket();
+            this.setupEventListeners();
+            this.setupWebRTC();
+        }
+
+        initializeElements() {
+            this.videoStream = document.getElementById('videoStream');
+            this.requestBtn = document.getElementById('requestAccessBtn');
+            this.statusDisplay = document.getElementById('statusDisplay');
+            this.actionLog = document.getElementById('actionLog');
+            this.releaseBtn = document.getElementById('releaseBtn');
+
+
+            this.controlBtns = {
+                up: document.getElementById('upBtn'),
+                down: document.getElementById('downBtn'),
+                left: document.getElementById('leftBtn'),
+                right: document.getElementById('rightBtn'),
+                fire: document.getElementById('fireBtn')
+            };
+        }
+
+        initializeWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+            this.ws = new WebSocket(wsUrl);
+
+            this.ws.onopen = () => {
+                this.log('Connected to server', 'success');
+                this.updateStatus('Connected - Ready to request access');
+                this.requestBtn.disabled = false;
+                if (this.ws.readyState === WebSocket.OPEN) {
+                    this.sendMessage({
+                        type: 'GetUserId',
+                    });
+                }
+            };
+
+            this.ws.onmessage = (event) => {
+                this.handleServerMessage(JSON.parse(event.data));
+            };
+
+            this.ws.onclose = () => {
+                this.log('Disconnected from server', 'error');
+                this.updateStatus('Disconnected', 'disconnected');
+                this.hasControl = false;
+                this.updateControlButtons();
+
+                // Attempt reconnection
+                setTimeout(() => {
+                    this.log('Attempting to reconnect...', 'info');
+                    this.initializeWebSocket();
+                }, 3000);
+            };
+
+            this.ws.onerror = (error) => {
+                this.log(`WebSocket error: ${error}`, 'error');
+            };
+        }
+
+        handleServerMessage(message) {
+            console.log("Server message:", message);
+
+            switch (message.type) {
+                case 'AccessDenied':
+                    if (message.user_id === this.getUserId()) {
+                        this.hasControl = false;
+                        this.isRequested = false;
+                        this.updateStatus('No access');
+                        this.updateControlButtons();
+                        this.releaseControl();
+                        this.log('Access denied', 'warning');
+                    }
+                    break;
+
+                case 'AccessGranted':
+                    if (message.user_id === this.getUserId()) {
+                        this.hasControl = true;
+                        this.isRequested = false;
+                        this.updateStatus('🎮 You have control! (5 min max)', 'active');
+                        this.updateControlButtons();
+                        this.log('Access granted - You now have control!', 'success');
+                    }
+                    break;
+
+                case 'QueuePosition':
+                    if (message.user_id === this.getUserId()) {
+                        this.queuePosition = message.position;
+                        this.updateStatus(`⏳ In queue - Position: ${message.position}`, 'waiting');
+                        this.log(`Queue position: ${message.position}`, 'info');
+                    }
+                    break;
+
+                case 'ControlAction':
+                    if (message.user_id === this.getUserId()) {
+                        this.log(`User performed: ${message.action}`, 'info');
+                    }
+                    break;
+
+                case 'WebRTCOffer':
+                    this.handleWebRTCOffer(message.sdp);
+                    break;
+
+                case 'WebRTCAnswer':
+                    this.handleWebRTCAnswer(message.sdp);
+                    break;
+
+                case 'ICECandidate':
+                    this.handleICECandidate(message.candidate);
+                    break;
+
+                case 'Error':
+                    this.log(`Error: ${message.message}`, 'error');
+                    break;
+
+                case 'ResponseUserId':
+                    this.setUserId(message.user_id)
+                    if (message.user_id === this.getUserId()) {
+                        this.updateStatus(`User ID: ${message.user_id}`, 'active');
+                    }
+                    break;
+
+                default:
+                    this.log(`Unknown message: ${message.type}`, 'warning');
+            }
+        }
+
+        setupWebRTC() {
+            const configuration = {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' }
+                ]
+            };
+
+            this.pc = new RTCPeerConnection(configuration);
+
+            this.pc.onicecandidate = (event) => {
+                if (event.candidate && this.ws.readyState === WebSocket.OPEN) {
+                    this.sendMessage({
+                        type: 'ICECandidate',
+                        candidate: JSON.stringify(event.candidate)
+                    });
+                }
+            };
+
+            this.pc.ontrack = (event) => {
+                this.log('Received video stream', 'success');
+                this.videoStream.srcObject = event.streams[0];
+            };
+
+            this.pc.onconnectionstatechange = () => {
+                this.log(`WebRTC connection state: ${this.pc.connectionState}`, 'info');
+            };
+
+            // Start the video stream (this would typically be done on the server side)
+            this.requestVideoStream();
+        }
+
+        async requestVideoStream() {
+            try {
+                // In a real implementation, the server would provide the video stream
+                // For demo purposes, we'll use the user's webcam
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: false
+                });
+
+                stream.getTracks().forEach(track => {
+                    this.pc.addTrack(track, stream);
+                });
+
+                // Create offer and send to server
+                const offer = await this.pc.createOffer();
+                await this.pc.setLocalDescription(offer);
+
+                this.sendMessage({
+                    type: 'WebRTCOffer',
+                    sdp: offer.sdp
+                });
+
+                this.log('Video stream initialized', 'success');
+            } catch (error) {
+                this.log(`Failed to access camera: ${error.message}`, 'error');
+            }
+        }
+
+        async handleWebRTCOffer(sdp) {
+            try {
+                await this.pc.setRemoteDescription(new RTCSessionDescription({
+                    type: 'offer',
+                    sdp: sdp
+                }));
+
+                const answer = await this.pc.createAnswer();
+                await this.pc.setLocalDescription(answer);
+
+                this.sendMessage({
+                    type: 'WebRTCAnswer',
+                    sdp: answer.sdp
+                });
+            } catch (error) {
+                this.log(`WebRTC offer error: ${error.message}`, 'error');
+            }
+        }
+
+        async handleWebRTCAnswer(sdp) {
+            try {
+                await this.pc.setRemoteDescription(new RTCSessionDescription({
+                    type: 'answer',
+                    sdp: sdp
+                }));
+            } catch (error) {
+                this.log(`WebRTC answer error: ${error.message}`, 'error');
+            }
+        }
+
+        async handleICECandidate(candidateStr) {
+            try {
+                const candidate = JSON.parse(candidateStr);
+                await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (error) {
+                this.log(`ICE candidate error: ${error.message}`, 'error');
+            }
+        }
+
+        setupEventListeners() {
+            this.requestBtn.addEventListener('click', () => {
+                if (!this.isRequested) {
+                    this.requestAccess();
+                }
+            });
+
+            this.releaseBtn.addEventListener('click', () => {
+                this.releaseControl();
+            });
+
+            Object.entries(this.controlBtns).forEach(([action, btn]) => {
+                btn.addEventListener('click', () => {
+                    if (this.hasControl) {
+                        this.sendControlAction(action);
+                    }
+                });
+            });
+
+            // Keyboard controls
+            document.addEventListener('keydown', (event) => {
+                if (!this.hasControl) return;
+
+                const keyMap = {
+                    'ArrowUp': 'up',
+                    'ArrowDown': 'down',
+                    'ArrowLeft': 'left',
+                    'ArrowRight': 'right',
+                    ' ': 'fire', // Space bar
+                    'Enter': 'fire'
+                };
+
+                if (keyMap[event.key]) {
+                    event.preventDefault();
+                    this.sendControlAction(keyMap[event.key]);
+                }
+            });
+        }
+
+        requestAccess() {
+            if (this.ws.readyState === WebSocket.OPEN) {
+                this.sendMessage({ type: 'RequestAccess' });
+                this.isRequested = true;
+                this.requestBtn.disabled = true;
+                this.requestBtn.textContent = '⏳ Requesting...';
+                this.log('Requesting access...', 'info');
+            }
+        }
+
+        releaseControl() {
+            if (this.hasControl && this.ws.readyState === WebSocket.OPEN) {
+                this.sendMessage({ type: 'ReleaseControl' });
+                this.hasControl = false;
+                this.updateControlButtons();
+                this.updateStatus('Released control', 'waiting');
+                this.log('Released control voluntarily', 'info');
+            }
+        }
+
+        sendControlAction(action) {
+            if (this.hasControl && this.ws.readyState === WebSocket.OPEN) {
+                this.sendMessage({
+                    type: 'Control',
+                    action: action
+                });
+                this.log(`Sent command: ${action.toUpperCase()}`, 'info');
+
+                // Visual feedback
+                const btn = this.controlBtns[action];
+                if (btn) {
+                    btn.style.transform = 'scale(0.95)';
+                    setTimeout(() => {
+                        btn.style.transform = 'scale(1)';
+                    }, 100);
+                }
+            }
+        }
+
+        sendMessage(message) {
+            if (this.ws.readyState === WebSocket.OPEN) {
+                this.ws.send(JSON.stringify(message));
+            }
+        }
+
+        updateStatus(text, type = 'waiting') {
+            this.statusDisplay.textContent = text;
+            this.statusDisplay.className = `status ${type}`;
+        }
+
+        updateControlButtons() {
+            const isEnabled = this.hasControl;
+
+            Object.values(this.controlBtns).forEach(btn => {
+                btn.disabled = !isEnabled;
+            });
+
+            if (isEnabled) {
+                this.requestBtn.style.display = 'none';
+                this.releaseBtn.style.display = 'block';
+            } else {
+                this.requestBtn.style.display = 'block';
+                this.requestBtn.disabled = false;
+                this.requestBtn.textContent = '🎯 Request Access';
+                this.releaseBtn.style.display = 'none';
+                this.isRequested = false;
+            }
+        }
+
+        log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+
+            this.actionLog.appendChild(logEntry);
+            this.actionLog.scrollTop = this.actionLog.scrollHeight;
+
+            // Keep only last 50 entries
+            while (this.actionLog.children.length > 50) {
+                this.actionLog.removeChild(this.actionLog.firstChild);
+            }
+        }
+
+        getUserId() {
+            return this.user_id;
+        }
+
+        setUserId(user_id) {
+            this.user_id = user_id;
+        }
+    }
+
+    // Initialize the application when the page loads
+    document.addEventListener('DOMContentLoaded', () => {
+        new WSController();
+    });
+</script>
+</body>
+</html>
