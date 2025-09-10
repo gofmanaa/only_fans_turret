@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type")]
 pub enum ClientMessage {
     RequestAccess,
-    Control { action: String },
+    Control { action: String }, // todo: change to enum type Action
     ReleaseControl,
     GetUserId,
 }
@@ -19,7 +19,7 @@ pub enum ServerMessage {
     AccessDenied { user_id: String},
     QueuePosition { user_id: String, position: usize },
     ControlAction { user_id: String, action: String },
-    UserDisconnected { user_id: String },
-    Error {user_id: String, message: String },
+    UserDisconnected { user_id: String }, //todo: not implemented
+    Error {user_id: String, message: String }, //todo: not implemented
     ResponseUserId { user_id: String},
 }

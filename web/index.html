@@ -20,20 +20,11 @@
             height: 80vh;
         }
 
-        .video-section {
+        .video-section, .control-section {
             background: white;
             border-radius: 10px;
             padding: 20px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-
-        .control-section {
-            background: white;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            display: flex;
-            flex-direction: column;
         }
 
         #videoStream {
@@ -51,28 +42,9 @@
             font-weight: bold;
             text-align: center;
         }
-
-        .status.waiting {
-            background: #fff3cd;
-            color: #856404;
-            border: 1px solid #ffeaa7;
-        }
-
-        .status.active {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .status.disconnected {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
-        .access-section {
-            margin-bottom: 30px;
-        }
+        .status.waiting { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .status.active { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status.disconnected { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
 
         .request-btn {
             width: 100%;
@@ -83,31 +55,28 @@
             cursor: pointer;
             transition: background-color 0.3s;
         }
+        .request-btn.available { background: #007bff; color: white; }
+        .request-btn.available:hover { background: #0056b3; }
+        .request-btn:disabled { background: #6c757d; color: white; cursor: not-allowed; }
 
-        .request-btn.available {
-            background: #007bff;
-            color: white;
-        }
-
-        .request-btn.available:hover {
-            background: #0056b3;
-        }
-
-        .request-btn:disabled {
-            background: #6c757d;
-            color: white;
-            cursor: not-allowed;
-        }
-
-        .controls {
-            flex: 1;
+        .video-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
         }
 
         .control-grid {
             display: grid;
+            grid-template-areas:
+        ". up ."
+        "left . right"
+        ". down .";
             grid-template-columns: 1fr 1fr 1fr;
+            grid-template-rows: auto auto auto;
             gap: 10px;
-            margin-bottom: 20px;
+            justify-items: center;
+            align-items: center;
+            margin: 20px 0;
         }
 
         .control-btn {
@@ -117,45 +86,19 @@
             border: 2px solid #dee2e6;
             border-radius: 5px;
             cursor: pointer;
-            transition: all 0.2s;
             background: white;
+            transition: all 0.2s;
         }
 
-        .control-btn:enabled {
-            border-color: #28a745;
-            color: #28a745;
-        }
+        #upBtn { grid-area: up; }
+        #leftBtn { grid-area: left; }
+        #rightBtn { grid-area: right; }
+        #downBtn { grid-area: down; }
 
-        .control-btn:enabled:hover {
-            background: #28a745;
-            color: white;
-            transform: scale(1.05);
-        }
-
-        .control-btn:enabled:active {
-            transform: scale(0.95);
-        }
-
-        .control-btn:disabled {
-            color: #6c757d;
-            cursor: not-allowed;
-        }
-
-        .control-btn.up {
-            grid-column: 2;
-        }
-
-        .control-btn.down {
-            grid-column: 2;
-        }
-
-        .control-btn.left {
-            grid-column: 1;
-        }
-
-        .control-btn.right {
-            grid-column: 3;
-        }
+        .control-btn:enabled { border-color: #28a745; color: #28a745; }
+        .control-btn:enabled:hover { background: #28a745; color: white; transform: scale(1.05); }
+        .control-btn:enabled:active { transform: scale(0.95); }
+        .control-btn:disabled { color: #6c757d; cursor: not-allowed; }
 
         .fire-btn {
             width: 100%;
@@ -170,22 +113,9 @@
             transition: all 0.2s;
             margin-top: 10px;
         }
-
-        .fire-btn:enabled:hover {
-            background: #dc3545;
-            color: white;
-            transform: scale(1.05);
-        }
-
-        .fire-btn:enabled:active {
-            transform: scale(0.95);
-        }
-
-        .fire-btn:disabled {
-            border-color: #6c757d;
-            color: #6c757d;
-            cursor: not-allowed;
-        }
+        .fire-btn:enabled:hover { background: #dc3545; color: white; transform: scale(1.05); }
+        .fire-btn:enabled:active { transform: scale(0.95); }
+        .fire-btn:disabled { border-color: #6c757d; color: #6c757d; cursor: not-allowed; }
 
         .release-btn {
             width: 100%;
@@ -198,10 +128,7 @@
             cursor: pointer;
             font-weight: bold;
         }
-
-        .release-btn:hover {
-            background: #e0a800;
-        }
+        .release-btn:hover { background: #e0a800; }
 
         .log {
             background: #f8f9fa;
@@ -215,47 +142,40 @@
             margin-top: 20px;
         }
 
-        .log-entry {
-            margin-bottom: 5px;
-            padding: 2px 0;
-        }
-
-        .log-entry.info {
-            color: #007bff;
-        }
-
-        .log-entry.success {
-            color: #28a745;
-        }
-
-        .log-entry.warning {
-            color: #ffc107;
-        }
-
-        .log-entry.error {
-            color: #dc3545;
-        }
-
         @media (max-width: 768px) {
-            .container {
-                grid-template-columns: 1fr;
-                height: auto;
-            }
+            .container { grid-template-columns: 1fr; height: auto; }
+            .control-section { order: -1; }
+        }
 
-            .control-section {
-                order: -1;
-            }
+        .video-controls {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
-<h1>🎮 WebRTC Remote Control</h1>
+<img src="static/logo.png" alt="Only Turret Fans">
+<h1>Only Turret Fans</h1>
 
 <div class="container">
     <div class="video-section">
         <video id="videoStream" autoplay muted playsinline>
             Your browser does not support video streaming.
         </video>
+        <div class="video-controls">
+            <span>Bytes Received: <span id="bytesReceived">0</span></span>
+        </div>
+        <div class="video-controls">
+            <button id="startBtn" class="control-btn" aria-label="Start video">Start Video</button>
+            <button id="stopBtn" disabled class="control-btn" aria-label="Stop video">Stop Video</button>
+        </div>
+
+        <div class="status disconnected" id="connectionStatus">Disconnected</div>
 
         <div class="log" id="actionLog">
             <div class="log-entry info">Waiting for connection...</div>
@@ -263,30 +183,21 @@
     </div>
 
     <div class="control-section">
-        <div class="access-section">
-            <button id="requestAccessBtn" class="request-btn available">
-                🎯 Request Access
-            </button>
+        <button id="requestAccessBtn" class="request-btn available">
+            🎯 Request Access
+        </button>
+        <button id="releaseBtn" class="release-btn" style="display: none;">
+            Release Control
+        </button>
 
-            <div id="statusDisplay" class="status disconnected">
-                Disconnected
-            </div>
+        <div class="control-grid">
+            <button id="upBtn" class="control-btn" disabled aria-label="Move up">↑ UP</button>
+            <button id="leftBtn" class="control-btn" disabled aria-label="Move left">← LEFT</button>
+            <button id="rightBtn" class="control-btn" disabled aria-label="Move right">RIGHT →</button>
+            <button id="downBtn" class="control-btn" disabled aria-label="Move down">↓ DOWN</button>
         </div>
 
-        <div class="controls">
-            <div class="control-grid">
-                <button id="upBtn" class="control-btn up" disabled>↑ UP</button>
-                <button id="leftBtn" class="control-btn left" disabled>← LEFT</button>
-                <button id="rightBtn" class="control-btn right" disabled>RIGHT →</button>
-                <button id="downBtn" class="control-btn down" disabled>↓ DOWN</button>
-            </div>
-
-            <button id="fireBtn" class="fire-btn" disabled>🔥 FIRE</button>
-
-            <button id="releaseBtn" class="release-btn" style="display: none;">
-                Release Control
-            </button>
-        </div>
+        <button id="fireBtn" class="fire-btn" disabled aria-label="Fire action">🔥 FIRE</button>
     </div>
 </div>
 
@@ -298,21 +209,13 @@
             this.hasControl = false;
             this.user_id = 0;
             this.isRequested = false;
-            this.queuePosition = 0;
 
-            this.initializeElements();
-            this.initializeWebSocket();
-            this.setupEventListeners();
-            this.setupWebRTC();
-        }
-
-        initializeElements() {
             this.videoStream = document.getElementById('videoStream');
             this.requestBtn = document.getElementById('requestAccessBtn');
-            this.statusDisplay = document.getElementById('statusDisplay');
-            this.actionLog = document.getElementById('actionLog');
             this.releaseBtn = document.getElementById('releaseBtn');
-
+            this.actionLog = document.getElementById('actionLog');
+            this.statusDisplay = document.getElementById('connectionStatus');
+            this.bytesReceivedEl = document.getElementById('bytesReceived');
 
             this.controlBtns = {
                 up: document.getElementById('upBtn'),
@@ -321,6 +224,14 @@
                 right: document.getElementById('rightBtn'),
                 fire: document.getElementById('fireBtn')
             };
+
+            this.videoControlBtns = {
+                start: document.getElementById('startBtn'),
+                stop: document.getElementById('stopBtn'),
+            };
+
+            this.initializeWebSocket();
+            this.setupEventListeners();
         }
 
         initializeWebSocket() {
@@ -331,279 +242,154 @@
 
             this.ws.onopen = () => {
                 this.log('Connected to server', 'success');
-                this.updateStatus('Connected - Ready to request access');
+                this.updateStatus('Connected - Ready to request access', 'active');
                 this.requestBtn.disabled = false;
-                if (this.ws.readyState === WebSocket.OPEN) {
-                    this.sendMessage({
-                        type: 'GetUserId',
-                    });
-                }
+                this.sendMessage({ type: 'GetUserId' });
             };
 
-            this.ws.onmessage = (event) => {
-                this.handleServerMessage(JSON.parse(event.data));
-            };
-
+            this.ws.onmessage = (event) => this.handleServerMessage(JSON.parse(event.data));
             this.ws.onclose = () => {
                 this.log('Disconnected from server', 'error');
                 this.updateStatus('Disconnected', 'disconnected');
                 this.hasControl = false;
                 this.updateControlButtons();
-
-                // Attempt reconnection
-                setTimeout(() => {
-                    this.log('Attempting to reconnect...', 'info');
-                    this.initializeWebSocket();
-                }, 3000);
+                setTimeout(() => this.initializeWebSocket(), 3000);
             };
-
-            this.ws.onerror = (error) => {
-                this.log(`WebSocket error: ${error}`, 'error');
-            };
+            this.ws.onerror = (error) => this.log(`WebSocket error: ${error}`, 'error');
         }
 
-        handleServerMessage(message) {
-            console.log("Server message:", message);
-
-            switch (message.type) {
-                case 'AccessDenied':
-                    if (message.user_id === this.getUserId()) {
-                        this.hasControl = false;
-                        this.isRequested = false;
-                        this.updateStatus('No access');
-                        this.updateControlButtons();
-                        this.releaseControl();
-                        this.log('Access denied', 'warning');
-                    }
-                    break;
-
-                case 'AccessGranted':
-                    if (message.user_id === this.getUserId()) {
-                        this.hasControl = true;
-                        this.isRequested = false;
-                        this.updateStatus('🎮 You have control! (5 min max)', 'active');
-                        this.updateControlButtons();
-                        this.log('Access granted - You now have control!', 'success');
-                    }
-                    break;
-
-                case 'QueuePosition':
-                    if (message.user_id === this.getUserId()) {
-                        this.queuePosition = message.position;
-                        this.updateStatus(`⏳ In queue - Position: ${message.position}`, 'waiting');
-                        this.log(`Queue position: ${message.position}`, 'info');
-                    }
-                    break;
-
-                case 'ControlAction':
-                    if (message.user_id === this.getUserId()) {
-                        this.log(`User performed: ${message.action}`, 'info');
-                    }
-                    break;
-
-                case 'WebRTCOffer':
-                    this.handleWebRTCOffer(message.sdp);
-                    break;
-
-                case 'WebRTCAnswer':
-                    this.handleWebRTCAnswer(message.sdp);
-                    break;
-
-                case 'ICECandidate':
-                    this.handleICECandidate(message.candidate);
-                    break;
-
-                case 'Error':
-                    this.log(`Error: ${message.message}`, 'error');
-                    break;
-
-                case 'ResponseUserId':
-                    this.setUserId(message.user_id)
-                    if (message.user_id === this.getUserId()) {
-                        this.updateStatus(`User ID: ${message.user_id}`, 'active');
-                    }
-                    break;
-
-                default:
-                    this.log(`Unknown message: ${message.type}`, 'warning');
-            }
-        }
-
-        setupWebRTC() {
-            const configuration = {
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' }
-                ]
-            };
-
-            this.pc = new RTCPeerConnection(configuration);
-
-            this.pc.onicecandidate = (event) => {
-                if (event.candidate && this.ws.readyState === WebSocket.OPEN) {
-                    this.sendMessage({
-                        type: 'ICECandidate',
-                        candidate: JSON.stringify(event.candidate)
-                    });
-                }
-            };
-
-            this.pc.ontrack = (event) => {
-                this.log('Received video stream', 'success');
-                this.videoStream.srcObject = event.streams[0];
-            };
-
-            this.pc.onconnectionstatechange = () => {
-                this.log(`WebRTC connection state: ${this.pc.connectionState}`, 'info');
-            };
-
-            // Start the video stream (this would typically be done on the server side)
-            this.requestVideoStream();
-        }
-
-        async requestVideoStream() {
+        async startWebRTC() {
             try {
-                // In a real implementation, the server would provide the video stream
-                // For demo purposes, we'll use the user's webcam
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: true,
-                    audio: false
+                this.pc = new RTCPeerConnection({
+                    iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }]
                 });
 
-                stream.getTracks().forEach(track => {
-                    this.pc.addTrack(track, stream);
-                });
+                this.pc.onconnectionstatechange = () => {
+                    if (this.pc.connectionState === 'connected') {
+                        this.updateStatus('Streaming', 'active');
+                    } else if (['disconnected', 'failed'].includes(this.pc.connectionState)) {
+                        this.updateStatus('Disconnected', 'disconnected');
+                    }
+                };
 
-                // Create offer and send to server
+                this.pc.ontrack = e => { this.videoStream.srcObject = e.streams[0]; };
+
+                this.pc.addTransceiver("video", { direction: "recvonly" });
                 const offer = await this.pc.createOffer();
                 await this.pc.setLocalDescription(offer);
 
-                this.sendMessage({
-                    type: 'WebRTCOffer',
-                    sdp: offer.sdp
+                await new Promise(resolve => {
+                    if (this.pc.iceGatheringState === 'complete') return resolve();
+                    this.pc.onicegatheringstatechange = () => {
+                        if (this.pc.iceGatheringState === 'complete') resolve();
+                    };
                 });
 
-                this.log('Video stream initialized', 'success');
-            } catch (error) {
-                this.log(`Failed to access camera: ${error.message}`, 'error');
-            }
-        }
+                console.log("send to server client_id:", this.getUserId())
 
-        async handleWebRTCOffer(sdp) {
-            try {
-                await this.pc.setRemoteDescription(new RTCSessionDescription({
-                    type: 'offer',
-                    sdp: sdp
-                }));
-
-                const answer = await this.pc.createAnswer();
-                await this.pc.setLocalDescription(answer);
-
-                this.sendMessage({
-                    type: 'WebRTCAnswer',
-                    sdp: answer.sdp
+                const resp = await fetch('/sdp', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        sdp: this.pc.localDescription.sdp,
+                        type: this.pc.localDescription.type,
+                        client_id: this.getUserId(),
+                    }),
+                    headers: { 'Content-Type': 'application/json' }
                 });
+
+                const text = await resp.text(); // always read raw
+                try {
+                    console.log("server response:", text);
+                    const answer = JSON.parse(text);
+                    await this.pc.setRemoteDescription(answer);
+                } catch (err) {
+                    console.error("WebRTC error: server did not return valid JSON", text);
+                    throw err;
+                }
+
+                this.videoControlBtns.start.disabled = true;
+                this.videoControlBtns.stop.disabled = false;
+
+                // Start stats polling
+                this.startStatsPolling();
             } catch (error) {
-                this.log(`WebRTC offer error: ${error.message}`, 'error');
+                this.log(`WebRTC error: ${error}`, 'error');
+                this.updateStatus('Connection Failed', 'disconnected');
             }
         }
 
-        async handleWebRTCAnswer(sdp) {
-            try {
-                await this.pc.setRemoteDescription(new RTCSessionDescription({
-                    type: 'answer',
-                    sdp: sdp
-                }));
-            } catch (error) {
-                this.log(`WebRTC answer error: ${error.message}`, 'error');
-            }
+        stopWebRTC() {
+            if (this.pc) { this.pc.close(); this.pc = null; }
+            this.videoStream.srcObject = null;
+            this.updateStatus('Stopped', 'disconnected');
+            this.videoControlBtns.start.disabled = false;
+            this.videoControlBtns.stop.disabled = true;
         }
 
-        async handleICECandidate(candidateStr) {
-            try {
-                const candidate = JSON.parse(candidateStr);
-                await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
-            } catch (error) {
-                this.log(`ICE candidate error: ${error.message}`, 'error');
-            }
+        startStatsPolling() {
+            if (!this.pc) return;
+            let lastBytes = 0;
+            setInterval(async () => {
+                if (!this.pc) return;
+                const stats = await this.pc.getStats();
+                stats.forEach(report => {
+                    if (report.type === "inbound-rtp" && report.kind === "video") {
+                        const bytes = report.bytesReceived;
+                        //this.bytesReceivedEl.textContent = bytes.toLocaleString();
+                        const delta = bytes - lastBytes;
+                        if (delta > 0) {
+                            const bitrate = (delta * 8 / 1000).toFixed(1); // kbps
+                            this.bytesReceivedEl.textContent = `${bitrate} kbps`;
+                        }
+                        lastBytes = bytes;
+                    }
+                });
+
+            }, 3000);
         }
 
         setupEventListeners() {
-            this.requestBtn.addEventListener('click', () => {
-                if (!this.isRequested) {
-                    this.requestAccess();
-                }
-            });
-
-            this.releaseBtn.addEventListener('click', () => {
-                this.releaseControl();
-            });
+            this.requestBtn.addEventListener('click', () => this.requestAccess());
+            this.releaseBtn.addEventListener('click', () => this.releaseControl());
+            this.videoControlBtns.start.addEventListener('click', () => this.startWebRTC());
+            this.videoControlBtns.stop.addEventListener('click', () => this.stopWebRTC());
 
             Object.entries(this.controlBtns).forEach(([action, btn]) => {
-                btn.addEventListener('click', () => {
-                    if (this.hasControl) {
-                        this.sendControlAction(action);
-                    }
-                });
+                btn.addEventListener('click', () => this.sendControlAction(action));
             });
 
-            // Keyboard controls
             document.addEventListener('keydown', (event) => {
                 if (!this.hasControl) return;
-
-                const keyMap = {
-                    'ArrowUp': 'up',
-                    'ArrowDown': 'down',
-                    'ArrowLeft': 'left',
-                    'ArrowRight': 'right',
-                    ' ': 'fire', // Space bar
-                    'Enter': 'fire'
-                };
-
+                const keyMap = { ArrowUp:'up', ArrowDown:'down', ArrowLeft:'left', ArrowRight:'right', ' ':'fire', Enter:'fire' };
                 if (keyMap[event.key]) {
                     event.preventDefault();
                     this.sendControlAction(keyMap[event.key]);
                 }
             });
+
+            window.addEventListener('beforeunload', () => this.stopWebRTC());
         }
 
         requestAccess() {
-            if (this.ws.readyState === WebSocket.OPEN) {
-                this.sendMessage({ type: 'RequestAccess' });
-                this.isRequested = true;
-                this.requestBtn.disabled = true;
-                this.requestBtn.textContent = '⏳ Requesting...';
-                this.log('Requesting access...', 'info');
-            }
+            this.sendMessage({ type: 'RequestAccess' });
+            this.isRequested = true;
+            this.requestBtn.disabled = true;
+            this.requestBtn.textContent = '⏳ Requesting...';
+            this.log('Requesting access...', 'info');
         }
 
         releaseControl() {
-            if (this.hasControl && this.ws.readyState === WebSocket.OPEN) {
-                this.sendMessage({ type: 'ReleaseControl' });
-                this.hasControl = false;
-                this.updateControlButtons();
-                this.updateStatus('Released control', 'waiting');
-                this.log('Released control voluntarily', 'info');
-            }
+            this.sendMessage({ type: 'ReleaseControl' });
+            this.hasControl = false;
+            this.updateControlButtons();
+            this.updateStatus('Released control', 'waiting');
+            this.log('Released control', 'info');
         }
 
         sendControlAction(action) {
-            if (this.hasControl && this.ws.readyState === WebSocket.OPEN) {
-                this.sendMessage({
-                    type: 'Control',
-                    action: action
-                });
-                this.log(`Sent command: ${action.toUpperCase()}`, 'info');
-
-                // Visual feedback
-                const btn = this.controlBtns[action];
-                if (btn) {
-                    btn.style.transform = 'scale(0.95)';
-                    setTimeout(() => {
-                        btn.style.transform = 'scale(1)';
-                    }, 100);
-                }
-            }
+            if (!this.hasControl) return;
+            this.sendMessage({ type: 'Control', action });
+            this.log(`Sent command: ${action.toUpperCase()}`, 'info');
         }
 
         sendMessage(message) {
@@ -612,28 +398,16 @@
             }
         }
 
-        updateStatus(text, type = 'waiting') {
+        updateStatus(text, type) {
             this.statusDisplay.textContent = text;
             this.statusDisplay.className = `status ${type}`;
         }
 
         updateControlButtons() {
             const isEnabled = this.hasControl;
-
-            Object.values(this.controlBtns).forEach(btn => {
-                btn.disabled = !isEnabled;
-            });
-
-            if (isEnabled) {
-                this.requestBtn.style.display = 'none';
-                this.releaseBtn.style.display = 'block';
-            } else {
-                this.requestBtn.style.display = 'block';
-                this.requestBtn.disabled = false;
-                this.requestBtn.textContent = '🎯 Request Access';
-                this.releaseBtn.style.display = 'none';
-                this.isRequested = false;
-            }
+            Object.values(this.controlBtns).forEach(btn => btn.disabled = !isEnabled);
+            this.requestBtn.style.display = isEnabled ? 'none' : 'block';
+            this.releaseBtn.style.display = isEnabled ? 'block' : 'none';
         }
 
         log(message, type = 'info') {
@@ -641,29 +415,30 @@
             const logEntry = document.createElement('div');
             logEntry.className = `log-entry ${type}`;
             logEntry.textContent = `[${timestamp}] ${message}`;
-
             this.actionLog.appendChild(logEntry);
             this.actionLog.scrollTop = this.actionLog.scrollHeight;
-
-            // Keep only last 50 entries
             while (this.actionLog.children.length > 50) {
                 this.actionLog.removeChild(this.actionLog.firstChild);
             }
         }
 
-        getUserId() {
-            return this.user_id;
-        }
+        getUserId() { return this.user_id; }
+        setUserId(id) { this.user_id = id; }
 
-        setUserId(user_id) {
-            this.user_id = user_id;
+        handleServerMessage(msg) {
+            switch (msg.type) {
+                case 'AccessGranted': this.hasControl = true; this.updateControlButtons(); this.updateStatus('🎮 You have control!', 'active'); break;
+                case 'AccessDenied': this.hasControl = false; this.updateControlButtons(); this.updateStatus('No access', 'disconnected'); break;
+                case 'ResponseUserId': this.setUserId(msg.user_id); this.log(`User ID: ${msg.user_id}`, 'success'); break;
+                case 'QueuePosition': this.updateStatus(`⏳ Queue Position: ${msg.position}`, 'waiting'); break;
+                case 'ControlAction': this.log(`Action: ${msg.action}`, 'info'); break;
+                case 'Error': this.log(`Error: ${msg.message}`, 'error'); break;
+                default: this.log(`Unknown message: ${msg.type}`, 'warning');
+            }
         }
     }
 
-    // Initialize the application when the page loads
-    document.addEventListener('DOMContentLoaded', () => {
-        new WSController();
-    });
+    document.addEventListener('DOMContentLoaded', () => new WSController());
 </script>
 </body>
 </html>

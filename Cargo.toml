@@ -19,3 +19,5 @@ futures-util = "0.3"
 anyhow = "1.0"
 chrono = "0.4.41"
 axum-extra = { version = "0.10.1", features = ["cookie"] }
+gstreamer = "0.24.1"
+gstreamer-video = "0.24.1"

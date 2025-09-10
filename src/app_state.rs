@@ -9,7 +9,11 @@ use axum::response::{Html, IntoResponse};
 use tokio::sync::{broadcast, mpsc, Mutex, RwLock};
 use tracing::info;
 use uuid::Uuid;
+use webrtc::peer_connection::RTCPeerConnection;
 use crate::message::ServerMessage;
+use webrtc::rtp::packet::Packet;
+use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
+use webrtc::track::track_local::track_local_static_rtp::TrackLocalStaticRTP;
 
 #[derive(Debug, Clone)]
 pub struct UserSession {
@@ -17,17 +21,29 @@ pub struct UserSession {
     pub joined_at: Instant,
     pub has_control: bool,
     pub control_granted_at: Option<Instant>,
+    pub peer_connection: Option<Arc<RTCPeerConnection>>,
+    pub video_track: Arc<TrackLocalStaticRTP>,
 }
 
 const USER_SESSION_TIMEOUT: Duration = Duration::from_secs((0.5 * 60.0) as u64);
 
 impl UserSession {
-    pub fn new(user_id: String) -> Self {
+    pub fn new(user_id: String, peer_connection: Option<Arc<RTCPeerConnection>>) -> Self {
+        let video_track = Arc::new(TrackLocalStaticRTP::new(
+            RTCRtpCodecCapability {
+                mime_type: "video/VP8".into(),
+                ..Default::default()
+            },
+            "video".into(),
+            "webrtc-rs".into(),
+        ));
         Self {
             id: user_id, //Uuid::new_v4().to_string(),
             joined_at: Instant::now(),
             has_control: false,
             control_granted_at: None,
+            peer_connection,
+            video_track,
         }
     }
 
@@ -95,20 +111,41 @@ impl AccessQueue {
 
 // ===== Application State =====
 
-#[derive(Debug)]
+
 pub struct AppState {
-    pub users: RwLock<HashMap<String, UserSession>>,
-    pub queue: Mutex<AccessQueue>,
+    pub users: Arc<RwLock<HashMap<String, UserSession>>>,
+    pub queue: Arc<Mutex<AccessQueue>>,
     pub broadcast_tx: broadcast::Sender<ServerMessage>,
+
+    // video stream
+    pub rtp_broadcast: broadcast::Sender<Packet>,
+
+    pub(crate) api: Arc<webrtc::api::API>,
+}
+
+impl Clone for AppState {
+    fn clone(&self) -> Self {
+        Self {
+            users:  Arc::clone(&self.users),
+            queue: Arc::clone(&self.queue),
+            broadcast_tx: self.broadcast_tx.clone(),
+            rtp_broadcast: self.rtp_broadcast.clone(),
+            api: Arc::clone(&self.api),
+        }
+    }
 }
 
 impl AppState {
-    pub fn new() -> Self {
-        let (broadcast_tx, _) = broadcast::channel(1000);
+    pub fn new(api: webrtc::api::API) -> Self {
+        let (broadcast_tx, _) = broadcast::channel(100);
+        let (rtp_broadcast, _) = broadcast::channel(1000); // Buffer for 1000 RTP packets
         Self {
-            users: RwLock::new(HashMap::new()),
-            queue: Mutex::new(AccessQueue::new()),
+            users: Arc::new(RwLock::new(HashMap::new())),
+            queue: Arc::new(Mutex::new(AccessQueue::new())),
             broadcast_tx,
+
+            rtp_broadcast,
+            api: Arc::new(api),
         }
     }
 
@@ -119,103 +156,18 @@ impl AppState {
 
     }
 
+    pub async fn get_user<U: Into<String>>(&self, user_id: U) -> Option<UserSession> {
+        let user_id: String = user_id.into();
+        let users = self.users.read().await;
+        users.get(&user_id).cloned()
+    }
+
     pub async fn remove_user(&self, user_id: &str) {
         info!("Removed user's session  {} ", user_id);
         self.users.write().await.remove(user_id);
         self.queue.lock().await.remove_user(user_id);
-
     }
 
-    // pub async fn process_queue(&self) {
-    //     let mut queue = self.queue.lock().await;
-    //
-    //     // Check if current active user's control has expired
-    //     if let Some(active_id) = &queue.active_user.clone() {
-    //         let users = self.users.read().await;
-    //         if let Some(user) = users.get(active_id) {
-    //             if user.is_control_expired() {
-    //                 info!("User {} control expired, moving to next in queue", active_id);
-    //                 queue.active_user = None;
-    //             }
-    //         } else {
-    //             // User disconnected
-    //             queue.active_user = None;
-    //         }
-    //     }
-    //
-    //     // Grant control to next user if no one has control
-    //     if queue.active_user.is_none() {
-    //         if let Some(next_user_id) = queue.get_next_user() {
-    //             drop(queue); // Release queue lock before acquiring users lock
-    //             let mut users = self.users.write().await;
-    //             if let Some(user) = users.get_mut(&next_user_id) {
-    //                 user.grant_control();
-    //                 info!("Granted control to user {}", next_user_id);
-    //
-    //                 // Send access granted message (ignore errors for now)
-    //                 let _ = self.broadcast_tx.send(ServerMessage::AccessGranted);
-    //             }
-    //         }
-    //     } else {
-    //         drop(queue);
-    //     }
-    //
-    //     // Send queue positions to all waiting users
-    //     let queue = self.queue.lock().await;
-    //     for (i, _user_id) in queue.queue.iter().enumerate() {
-    //         let message = ServerMessage::QueuePosition { position: i + 1 };
-    //         let _ = self.broadcast_tx.send(message);
-    //     }
-    // }
-    //
-    // pub async fn process_queue(&self) { //tod:  works but slow
-    //     // Step 1: Acquire queue lock briefly to check active user
-    //     let next_user_opt = {
-    //         let mut queue = self.queue.lock().await;
-    //
-    //         // Check if current active user's control has expired
-    //         if let Some(active_id) = &queue.active_user {
-    //             let users = self.users.read().await;
-    //             let expired = match users.get(active_id) {
-    //                 Some(user) => user.is_control_expired(),
-    //                 None => true, // user disconnected
-    //             };
-    //             if expired {
-    //                 info!("User {} control expired, moving to next in queue", active_id);
-    //                 queue.active_user = None;
-    //             }
-    //         }
-    //
-    //         // If no active user, pop next user from queue
-    //         if queue.active_user.is_none() {
-    //             queue.get_next_user()
-    //         } else {
-    //             None
-    //         }
-    //     }; // queue lock released here
-    //
-    //     // Step 2: Grant control to next user if any
-    //     if let Some(next_user_id) = next_user_opt {
-    //         let mut users = self.users.write().await;
-    //         if let Some(user) = users.get_mut(&next_user_id) {
-    //             user.grant_control();
-    //             info!("Granted control to user {}", next_user_id);
-    //
-    //             let _ = self.broadcast_tx.send(ServerMessage::AccessGranted);
-    //         }
-    //
-    //         // Update active_user in queue after granting control
-    //         let mut queue = self.queue.lock().await;
-    //         queue.active_user = Some(next_user_id);
-    //     }
-    //
-    //     // Step 3: Broadcast queue positions to all waiting users
-    //     let queue = self.queue.lock().await;
-    //     for (i, _user_id) in queue.queue.iter().enumerate() {
-    //         let message = ServerMessage::QueuePosition { position: i + 1 };
-    //         let _ = self.broadcast_tx.send(message);
-    //     }
-    // }
 
     pub async fn process_queue(&self) {
         // Step 1: Determine what to do while holding queue lock

@@ -30,12 +30,12 @@ pub(crate) async fn websocket_handler(
     let user_id = jar
         .get("user_id")
         .map(|c| c.value().to_string())
-        .unwrap_or_else(|| Uuid::new_v4().to_string());
+        .unwrap();
     ws.on_upgrade(|socket| handle_websocket(socket, state, user_id))
 }
 
 async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: String) {
-    let user_session = UserSession::new(user_id.clone());
+    let user_session = UserSession::new(user_id.clone(), None);
    // let user_id = user_session.id.clone();
 
     info!("New WebSocket connection: {}", user_id);
