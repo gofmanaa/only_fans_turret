@@ -1,7 +1,7 @@
-use gstreamer as gst;
+use anyhow::{Context, Result};
 use gst::prelude::*;
+use gstreamer as gst;
 use std::error::Error;
-use anyhow::{Result, Context};
 use tracing::debug;
 
 /// Struct representing the VP8 UDP streamer
@@ -45,7 +45,8 @@ impl Vp8Streamer {
             .build()
             .context("Failed to create udpsink")?;
 
-        pipeline.add_many(&[&src, &convert, &encoder, &payloader, &sink])
+        pipeline
+            .add_many(&[&src, &convert, &encoder, &payloader, &sink])
             .context("Failed to add elements to pipeline")?;
         gst::Element::link_many(&[&src, &convert, &encoder, &payloader, &sink])
             .context("Failed to link elements")?;

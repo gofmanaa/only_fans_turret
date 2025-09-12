@@ -1,10 +1,11 @@
-use std::sync::Arc;
-use std::time::Instant;
+use crate::app_state::{AppState, UserSession};
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::Json;
 use axum::response::Json as AxumJson;
 use serde_json::Value;
+use std::sync::Arc;
+use std::time::Instant;
 use tracing::{error, info};
 use uuid::Uuid;
 use webrtc::ice_transport::ice_server::RTCIceServer;
@@ -12,21 +13,25 @@ use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
-use webrtc::track::track_local::track_local_static_rtp::TrackLocalStaticRTP;
 use webrtc::track::track_local::TrackLocalWriter;
-use crate::app_state::{AppState, UserSession};
+use webrtc::track::track_local::track_local_static_rtp::TrackLocalStaticRTP;
 
 /// Handle SDP offer from client and create peer connection
 pub async fn handle_sdp_offer(
     State(app_state): State<Arc<AppState>>,
     Json(offer): Json<Value>,
 ) -> Result<AxumJson<Value>, (StatusCode, String)> {
-    let client_id = offer.get("client_id")
+    let client_id = offer
+        .get("client_id")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
         .unwrap();
-    let user_session = app_state.get_user(client_id).await
-        .ok_or_else(|| (StatusCode::NON_AUTHORITATIVE_INFORMATION, "User session not found.".to_string()))?;
+    let user_session = app_state.get_user(client_id).await.ok_or_else(|| {
+        (
+            StatusCode::NON_AUTHORITATIVE_INFORMATION,
+            "User session not found.".to_string(),
+        )
+    })?;
 
     let client_id = user_session.id.clone();
     info!("Processing SDP offer for client: {}", client_id);
@@ -40,20 +45,34 @@ pub async fn handle_sdp_offer(
         ..Default::default()
     };
 
-    let pc = app_state.api.new_peer_connection(config)
+    let pc = app_state
+        .api
+        .new_peer_connection(config)
         .await
         .map(Arc::new)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create peer connection: {:?}", e)))?;
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to create peer connection: {:?}", e),
+            )
+        })?;
 
     // Create video track
     let video_track = Arc::new(TrackLocalStaticRTP::new(
-        RTCRtpCodecCapability { mime_type: "video/VP8".into(), ..Default::default() },
+        RTCRtpCodecCapability {
+            mime_type: "video/VP8".into(),
+            ..Default::default()
+        },
         "video".into(),
         "webrtc-rs".into(),
     ));
 
-    pc.add_track(video_track.clone()).await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to add track: {:?}", e)))?;
+    pc.add_track(video_track.clone()).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to add track: {:?}", e),
+        )
+    })?;
 
     // RTP forwarding task
     {
@@ -67,7 +86,10 @@ pub async fn handle_sdp_offer(
 
             while let Ok(packet) = rtp_receiver.recv().await {
                 if let Err(e) = track_clone.write_rtp(&packet).await {
-                    error!("Error writing RTP to track for client {}: {}", client_id_clone, e);
+                    error!(
+                        "Error writing RTP to track for client {}: {}",
+                        client_id_clone, e
+                    );
                     break;
                 }
             }
@@ -102,28 +124,49 @@ pub async fn handle_sdp_offer(
     }
 
     // Process SDP offer
-    let offer_sdp_str = offer.get("sdp")
+    let offer_sdp_str = offer
+        .get("sdp")
         .and_then(|v| v.as_str())
         .ok_or((StatusCode::BAD_REQUEST, "Missing SDP in offer".to_string()))?;
 
-    let offer_sdp = RTCSessionDescription::offer(offer_sdp_str.to_string())
-        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to parse offer SDP: {:?}", e)))?;
+    let offer_sdp = RTCSessionDescription::offer(offer_sdp_str.to_string()).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Failed to parse offer SDP: {:?}", e),
+        )
+    })?;
 
-    pc.set_remote_description(offer_sdp).await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to set remote description: {:?}", e)))?;
+    pc.set_remote_description(offer_sdp).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to set remote description: {:?}", e),
+        )
+    })?;
 
-    let answer = pc.create_answer(None).await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create answer: {:?}", e)))?;
+    let answer = pc.create_answer(None).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to create answer: {:?}", e),
+        )
+    })?;
 
-    pc.set_local_description(answer.clone()).await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to set local description: {:?}", e)))?;
+    pc.set_local_description(answer.clone())
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to set local description: {:?}", e),
+            )
+        })?;
 
     // Wait for ICE gathering
     let mut gather_complete = pc.gathering_complete_promise().await;
     gather_complete.recv().await;
 
-    let local_desc = pc.local_description().await
-        .ok_or((StatusCode::INTERNAL_SERVER_ERROR, "No local description available".to_string()))?;
+    let local_desc = pc.local_description().await.ok_or((
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "No local description available".to_string(),
+    ))?;
 
     // Register client in AppState
     // let client = UserSession {

@@ -1,16 +1,16 @@
 // ===== User Session Management =====
 
+use crate::message::ServerMessage;
+use axum::extract::State;
+use axum::http::{HeaderMap, header};
+use axum::response::{Html, IntoResponse};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use axum::extract::State;
-use axum::http::{header, HeaderMap};
-use axum::response::{Html, IntoResponse};
-use tokio::sync::{broadcast, mpsc, Mutex, RwLock};
+use tokio::sync::{Mutex, RwLock, broadcast, mpsc};
 use tracing::info;
 use uuid::Uuid;
 use webrtc::peer_connection::RTCPeerConnection;
-use crate::message::ServerMessage;
 use webrtc::rtp::packet::Packet;
 use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::track_local_static_rtp::TrackLocalStaticRTP;
@@ -105,12 +105,14 @@ impl AccessQueue {
     }
 
     pub fn get_position(&self, user_id: &str) -> Option<usize> {
-        self.queue.iter().position(|id| id == user_id).map(|p| p + 1)
+        self.queue
+            .iter()
+            .position(|id| id == user_id)
+            .map(|p| p + 1)
     }
 }
 
 // ===== Application State =====
-
 
 pub struct AppState {
     pub users: Arc<RwLock<HashMap<String, UserSession>>>,
@@ -126,7 +128,7 @@ pub struct AppState {
 impl Clone for AppState {
     fn clone(&self) -> Self {
         Self {
-            users:  Arc::clone(&self.users),
+            users: Arc::clone(&self.users),
             queue: Arc::clone(&self.queue),
             broadcast_tx: self.broadcast_tx.clone(),
             rtp_broadcast: self.rtp_broadcast.clone(),
@@ -153,7 +155,6 @@ impl AppState {
         let user_id = user.id.clone();
         info!("Added user's session {} ", &user_id);
         self.users.write().await.insert(user_id, user);
-
     }
 
     pub async fn get_user<U: Into<String>>(&self, user_id: U) -> Option<UserSession> {
@@ -167,7 +168,6 @@ impl AppState {
         self.users.write().await.remove(user_id);
         self.queue.lock().await.remove_user(user_id);
     }
-
 
     pub async fn process_queue(&self) {
         // Step 1: Determine what to do while holding queue lock
@@ -203,12 +203,16 @@ impl AppState {
             };
 
             if expired {
-                info!("User {} control expired, moving to next in queue", active_id);
+                info!(
+                    "User {} control expired, moving to next in queue",
+                    active_id
+                );
                 let mut queue = self.queue.lock().await;
                 queue.active_user = None;
 
-
-                let _ = self.broadcast_tx.send(ServerMessage::AccessDenied { user_id: active_id });
+                let _ = self
+                    .broadcast_tx
+                    .send(ServerMessage::AccessDenied { user_id: active_id });
             }
         }
 
@@ -219,7 +223,9 @@ impl AppState {
                 user.grant_control();
                 info!("Granted control to user {}", next_user_id);
 
-                let response = ServerMessage::AccessGranted { user_id: next_user_id.clone() } ;
+                let response = ServerMessage::AccessGranted {
+                    user_id: next_user_id.clone(),
+                };
                 let _ = self.broadcast_tx.send(response);
             }
 
@@ -229,10 +235,11 @@ impl AppState {
 
         // Step 4: Broadcast queue positions (waiting list)
         for (i, user_id) in waiting_users.iter().enumerate() {
-            let message = ServerMessage::QueuePosition { user_id: user_id.clone(), position: i + 1 };
+            let message = ServerMessage::QueuePosition {
+                user_id: user_id.clone(),
+                position: i + 1,
+            };
             let _ = self.broadcast_tx.send(message);
         }
     }
-
 }
-

@@ -1,23 +1,22 @@
-
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::app_state::{AppState, UserSession};
+use crate::message::{ClientMessage, ServerMessage};
 use axum::{
-    extract::{ws::WebSocket, WebSocketUpgrade, State},
+    Router,
+    extract::{State, WebSocketUpgrade, ws::WebSocket},
     response::{Html, IntoResponse},
     routing::get,
-    Router,
 };
 use axum_extra::extract::CookieJar;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
-use tokio::sync::{broadcast, Mutex, RwLock};
+use tokio::sync::{Mutex, RwLock, broadcast};
 use tower_http::cors::CorsLayer;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
-use crate::app_state::{AppState, UserSession};
-use crate::message::{ClientMessage, ServerMessage};
 
 // ===== WebSocket Handler =====
 
@@ -27,21 +26,17 @@ pub(crate) async fn websocket_handler(
     jar: CookieJar,
 ) -> impl IntoResponse {
     // Get user_id from Cookie
-    let user_id = jar
-        .get("user_id")
-        .map(|c| c.value().to_string())
-        .unwrap();
+    let user_id = jar.get("user_id").map(|c| c.value().to_string()).unwrap();
     ws.on_upgrade(|socket| handle_websocket(socket, state, user_id))
 }
 
 async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: String) {
     let user_session = UserSession::new(user_id.clone(), None);
-   // let user_id = user_session.id.clone();
+    // let user_id = user_session.id.clone();
 
     info!("New WebSocket connection: {}", user_id);
 
     state.add_user(user_session).await;
-
 
     let mut broadcast_rx = state.broadcast_tx.subscribe();
     let (mut sender, mut receiver) = socket.split();
@@ -75,7 +70,10 @@ async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: Stri
     let outgoing_task = tokio::spawn(async move {
         while let Ok(msg) = broadcast_rx.recv().await {
             if let Ok(json) = serde_json::to_string(&msg) {
-                if let Err(_) = sender.send(axum::extract::ws::Message::Text(json.into())).await {
+                if let Err(_) = sender
+                    .send(axum::extract::ws::Message::Text(json.into()))
+                    .await
+                {
                     break;
                 }
             }
@@ -95,25 +93,27 @@ async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: Stri
     info!("WebSocket connection closed: {}", user_id);
 }
 
-async fn handle_client_message(
-    message: ClientMessage,
-    user_id: &str,
-    state: &Arc<AppState>,
-) {
+async fn handle_client_message(message: ClientMessage, user_id: &str, state: &Arc<AppState>) {
     match message {
         ClientMessage::RequestAccess => {
             let position = {
                 let mut queue = state.queue.lock().await;
                 queue.add_user(user_id.to_string())
             };
-            info!("User {} requested access, position in queue: {}", user_id, position);
+            info!(
+                "User {} requested access, position in queue: {}",
+                user_id, position
+            );
 
-            let response = ServerMessage::QueuePosition { user_id: user_id.to_string(), position };
+            let response = ServerMessage::QueuePosition {
+                user_id: user_id.to_string(),
+                position,
+            };
             let _ = state.broadcast_tx.send(response);
 
             //drop(queue);
             state.process_queue().await;
-        },
+        }
 
         ClientMessage::Control { action } => {
             let users = state.users.read().await;
@@ -129,10 +129,12 @@ async fn handle_client_message(
                 } else {
                     warn!("User {} attempted control without permission", user_id);
 
-                    let _ = state.broadcast_tx.send(ServerMessage::AccessDenied{ user_id: user_id.to_string() });
+                    let _ = state.broadcast_tx.send(ServerMessage::AccessDenied {
+                        user_id: user_id.to_string(),
+                    });
                 }
             }
-        },
+        }
 
         ClientMessage::ReleaseControl => {
             let mut users = state.users.write().await;
@@ -149,7 +151,7 @@ async fn handle_client_message(
                     state.process_queue().await;
                 }
             }
-        },
+        }
 
         ClientMessage::GetUserId => {
             let users = state.users.read().await;
@@ -160,6 +162,6 @@ async fn handle_client_message(
                 info!("ResponseUserId {}", user_id);
                 let _ = state.broadcast_tx.send(response);
             }
-        },
+        }
     }
 }

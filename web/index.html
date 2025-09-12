@@ -349,8 +349,8 @@
         }
 
         setupEventListeners() {
-            this.requestBtn.addEventListener('click', () => this.requestAccess());
-            this.releaseBtn.addEventListener('click', () => this.releaseControl());
+            this.requestBtn.addEventListener('click', () => this.sendRequestAccess());
+            this.releaseBtn.addEventListener('click', () => this.sendReleaseControl());
             this.videoControlBtns.start.addEventListener('click', () => this.startWebRTC());
             this.videoControlBtns.stop.addEventListener('click', () => this.stopWebRTC());
 
@@ -370,7 +370,7 @@
             window.addEventListener('beforeunload', () => this.stopWebRTC());
         }
 
-        requestAccess() {
+        sendRequestAccess() {
             this.sendMessage({ type: 'RequestAccess' });
             this.isRequested = true;
             this.requestBtn.disabled = true;
@@ -378,12 +378,18 @@
             this.log('Requesting access...', 'info');
         }
 
+
         releaseControl() {
-            this.sendMessage({ type: 'ReleaseControl' });
             this.hasControl = false;
+            this.requestBtn.textContent = '🎯 Request Access';
             this.updateControlButtons();
             this.updateStatus('Released control', 'waiting');
             this.log('Released control', 'info');
+        }
+
+        sendReleaseControl() {
+            this.releaseControl()
+            this.sendMessage({ type: 'ReleaseControl' });
         }
 
         sendControlAction(action) {
@@ -428,7 +434,7 @@
         handleServerMessage(msg) {
             switch (msg.type) {
                 case 'AccessGranted': this.hasControl = true; this.updateControlButtons(); this.updateStatus('🎮 You have control!', 'active'); break;
-                case 'AccessDenied': this.hasControl = false; this.updateControlButtons(); this.updateStatus('No access', 'disconnected'); break;
+                case 'AccessDenied': this.releaseControl(); this.updateStatus('No access', 'disconnected'); break;
                 case 'ResponseUserId': this.setUserId(msg.user_id); this.log(`User ID: ${msg.user_id}`, 'success'); break;
                 case 'QueuePosition': this.updateStatus(`⏳ Queue Position: ${msg.position}`, 'waiting'); break;
                 case 'ControlAction': this.log(`Action: ${msg.action}`, 'info'); break;
