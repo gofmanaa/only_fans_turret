@@ -3,11 +3,12 @@ use std::sync::Arc;
 use crate::app_state::{AppState, UserSession};
 use crate::message::{ClientMessage, ServerMessage};
 use axum::{
-    extract::{State, WebSocketUpgrade, ws::WebSocket},
+    extract::{State, WebSocketUpgrade, ws::{Message, WebSocket}},
     response::IntoResponse,
 };
 use axum_extra::extract::CookieJar;
 use futures_util::{SinkExt, StreamExt};
+use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
 // ===== WebSocket Handler =====
@@ -26,50 +27,49 @@ pub(crate) async fn websocket_handler(
 
 async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: String) {
     let user_session = UserSession::new(user_id.clone());
-    // let user_id = user_session.id.clone();
+    let user_id_for_senders = user_id.clone(); // Clone user_id for storing in user_ws_senders
 
     info!("New WebSocket connection: {}", user_id);
 
     state.add_user(user_session).await;
 
-    let mut broadcast_rx = state.broadcast_tx.subscribe();
-    let (mut sender, mut receiver) = socket.split();
+    let (mut ws_sender, mut ws_receiver) = socket.split();
+    let (tx, mut rx) = mpsc::channel::<Message>(100); // Channel for sending messages to this specific user
 
-    // Spawn task to handle incoming messages from client
-    let state_clone = state.clone();
-    let user_id_clone = user_id.clone();
-    let incoming_task = tokio::spawn(async move {
-        while let Some(msg) = receiver.next().await {
-            match msg {
-                Ok(axum::extract::ws::Message::Text(text)) => {
-                    debug!("Received text message: {}", text);
-                    if let Ok(client_msg) = serde_json::from_str::<ClientMessage>(&text) {
-                        handle_client_message(client_msg, &user_id_clone, &state_clone).await;
-                    }
-                }
-                Ok(axum::extract::ws::Message::Close(_)) => {
-                    info!("WebSocket closed by client: {}", user_id_clone);
-                    break;
-                }
-                Err(e) => {
-                    warn!("WebSocket error for {}: {}", user_id_clone, e);
-                    break;
-                }
-                _ => {}
+    // Store the sender for this user
+    state.user_ws_senders.write().await.insert(user_id_for_senders.clone(), tx);
+
+    // Spawn task to handle outgoing messages to client (from the mpsc channel)
+    let outgoing_task = tokio::spawn(async move {
+        while let Some(msg) = rx.recv().await {
+            if let Err(e) = ws_sender.send(msg).await {
+                warn!("Failed to send message to user {}: {}", user_id_for_senders, e);
+                break;
             }
         }
     });
 
-    // Spawn task to handle outgoing messages to client
-    let outgoing_task = tokio::spawn(async move {
-        while let Ok(msg) = broadcast_rx.recv().await {
-            if let Ok(json) = serde_json::to_string(&msg) {
-                if let Err(_) = sender
-                    .send(axum::extract::ws::Message::Text(json.into()))
-                    .await
-                {
+    // Spawn task to handle incoming messages from client
+    let state_clone = state.clone();
+    let user_id_clone_for_incoming = user_id.clone(); // Clone user_id for incoming task
+    let incoming_task = tokio::spawn(async move {
+        while let Some(msg) = ws_receiver.next().await {
+            match msg {
+                Ok(Message::Text(text)) => {
+                    debug!("Received text message: {}", text);
+                    if let Ok(client_msg) = serde_json::from_str::<ClientMessage>(&text) {
+                        handle_client_message(client_msg, &user_id_clone_for_incoming, &state_clone).await;
+                    }
+                }
+                Ok(Message::Close(_)) => {
+                    info!("WebSocket closed by client: {}", user_id_clone_for_incoming);
                     break;
                 }
+                Err(e) => {
+                    warn!("WebSocket error for {}: {}", user_id_clone_for_incoming, e);
+                    break;
+                }
+                _ => {}
             }
         }
     });
@@ -99,13 +99,11 @@ async fn handle_client_message(message: ClientMessage, user_id: &str, state: &Ar
                 user_id, position
             );
 
-            let response = ServerMessage::QueuePosition {
+            state.send_message_to_user(user_id, ServerMessage::QueuePosition {
                 user_id: user_id.to_string(),
                 position,
-            };
-            let _ = state.broadcast_tx.send(response);
+            }).await;
 
-            //drop(queue);
             state.process_queue().await;
         }
 
@@ -115,17 +113,16 @@ async fn handle_client_message(message: ClientMessage, user_id: &str, state: &Ar
                 if user.has_control && !user.is_control_expired() {
                     info!("User {} performed control action: {}", user_id, action);
 
-                    let response = ServerMessage::ControlAction {
+                    state.send_message_to_user(user_id, ServerMessage::ControlAction {
                         user_id: user_id.to_string(),
                         action,
-                    };
-                    let _ = state.broadcast_tx.send(response);
+                    }).await;
                 } else {
                     warn!("User {} attempted control without permission", user_id);
 
-                    let _ = state.broadcast_tx.send(ServerMessage::AccessDenied {
+                    state.send_message_to_user(user_id, ServerMessage::AccessDenied {
                         user_id: user_id.to_string(),
-                    });
+                    }).await;
                 }
             }
         }
@@ -150,11 +147,10 @@ async fn handle_client_message(message: ClientMessage, user_id: &str, state: &Ar
         ClientMessage::GetUserId => {
             let users = state.users.read().await;
             if let Some(user) = users.get(user_id) {
-                let response = ServerMessage::ResponseUserId {
+                state.send_message_to_user(user_id, ServerMessage::ResponseUserId {
                     user_id: user.id.clone(),
-                };
+                }).await;
                 info!("ResponseUserId {}", user_id);
-                let _ = state.broadcast_tx.send(response);
             }
         }
     }

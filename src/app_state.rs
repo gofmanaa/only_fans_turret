@@ -2,9 +2,11 @@ use crate::message::ServerMessage;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{Mutex, RwLock, broadcast};
-use tracing::info;
+use tokio::sync::{Mutex, RwLock, broadcast, mpsc};
+use tracing::{info, warn};
 use webrtc::rtp::packet::Packet;
+use axum::extract::ws::Message;
+use serde_json::to_string;
 
 #[derive(Debug, Clone)]
 pub struct UserSession {
@@ -92,11 +94,11 @@ impl AccessQueue {
 }
 
 // ===== Application State =====
-
+type UserWSSender = Arc<RwLock<HashMap<String, mpsc::Sender<Message>>>>;
 pub struct AppState {
     pub users: Arc<RwLock<HashMap<String, UserSession>>>,
     pub queue: Arc<Mutex<AccessQueue>>,
-    pub broadcast_tx: broadcast::Sender<ServerMessage>,
+    pub user_ws_senders: UserWSSender,
 
     // video stream
     pub rtp_broadcast: broadcast::Sender<Packet>,
@@ -109,7 +111,7 @@ impl Clone for AppState {
         Self {
             users: Arc::clone(&self.users),
             queue: Arc::clone(&self.queue),
-            broadcast_tx: self.broadcast_tx.clone(),
+            user_ws_senders: Arc::clone(&self.user_ws_senders),
             rtp_broadcast: self.rtp_broadcast.clone(),
             api: Arc::clone(&self.api),
         }
@@ -118,13 +120,11 @@ impl Clone for AppState {
 
 impl AppState {
     pub fn new(api: webrtc::api::API) -> Self {
-        let (broadcast_tx, _) = broadcast::channel(100);
         let (rtp_broadcast, _) = broadcast::channel(1000); // Buffer for 1000 RTP packets
         Self {
             users: Arc::new(RwLock::new(HashMap::new())),
             queue: Arc::new(Mutex::new(AccessQueue::new())),
-            broadcast_tx,
-
+            user_ws_senders: Arc::new(RwLock::new(HashMap::new())),
             rtp_broadcast,
             api: Arc::new(api),
         }
@@ -146,6 +146,28 @@ impl AppState {
         info!("Removed user's session  {} ", user_id);
         self.users.write().await.remove(user_id);
         self.queue.lock().await.remove_user(user_id);
+        self.user_ws_senders.write().await.remove(user_id);
+    }
+
+    pub async fn send_message_to_user(&self, user_id: &str, message: ServerMessage) {
+        let json_message = match to_string(&message) {
+            Ok(json) => json,
+            Err(e) => {
+                warn!("Failed to serialize ServerMessage for user {}: {}", user_id, e);
+                return;
+            }
+        };
+
+        let mut senders = self.user_ws_senders.write().await;
+        if let Some(sender) = senders.get_mut(user_id) {
+            if let Err(e) = sender.send(Message::Text(json_message.into())).await {
+                warn!("Failed to send message to user {}: {}", user_id, e);
+                // Consider removing the sender if the channel is closed
+                senders.remove(user_id);
+            }
+        } else {
+            warn!("No WebSocket sender found for user {}", user_id);
+        }
     }
 
     pub async fn process_queue(&self) {
@@ -189,9 +211,7 @@ impl AppState {
                 let mut queue = self.queue.lock().await;
                 queue.active_user = None;
 
-                let _ = self
-                    .broadcast_tx
-                    .send(ServerMessage::AccessDenied { user_id: active_id });
+                self.send_message_to_user(&active_id, ServerMessage::AccessDenied { user_id: active_id.clone() }).await;
             }
         }
 
@@ -202,10 +222,7 @@ impl AppState {
                 user.grant_control();
                 info!("Granted control to user {}", next_user_id);
 
-                let response = ServerMessage::AccessGranted {
-                    user_id: next_user_id.clone(),
-                };
-                let _ = self.broadcast_tx.send(response);
+                self.send_message_to_user(&next_user_id, ServerMessage::AccessGranted { user_id: next_user_id.clone() }).await;
             }
 
             let mut queue = self.queue.lock().await;
@@ -218,7 +235,7 @@ impl AppState {
                 user_id: user_id.clone(),
                 position: i + 1,
             };
-            let _ = self.broadcast_tx.send(message);
+            self.send_message_to_user(user_id, message).await;
         }
     }
 }

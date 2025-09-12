@@ -316,6 +316,9 @@
                     throw err;
                 }
 
+                this.videoControlBtns.start.disabled = true;
+                this.videoControlBtns.stop.disabled = false;
+
                 // Start stats polling
                 this.startStatsPolling();
             } catch (_error) {
@@ -445,14 +448,47 @@
         }
 
         handleServerMessage(msg) {
+            // For messages that are user-specific, check if the message is for this client
+            if (msg.user_id && msg.user_id !== this.getUserId()) {
+                // If the message has a user_id and it's not for this client, ignore it.
+                // This prevents other clients from processing messages not intended for them.
+                return;
+            }
+
             switch (msg.type) {
-                case 'AccessGranted': this.hasControl = true; this.updateControlButtons(); this.updateStatus('🎮 You have control!', 'active'); break;
-                case 'AccessDenied': this.releaseControl(); this.updateStatus('No access', 'disconnected'); break;
-                case 'ResponseUserId': this.setUserId(msg.user_id); this.log(`User ID: ${msg.user_id}`, 'success'); break;
-                case 'QueuePosition': this.updateStatus(`⏳ Queue Position: ${msg.position}`, 'waiting'); break;
-                case 'ControlAction': this.log(`Action: ${msg.action}`, 'info'); break;
-                case 'Error': this.log(`Error: ${msg.message}`, 'error'); break;
-                default: this.log(`Unknown message: ${msg.type}`, 'warning');
+                case 'AccessGranted':
+                    this.hasControl = true;
+                    this.updateControlButtons();
+                    this.updateStatus('🎮 You have control!', 'active');
+                    this.log('Access granted!', 'success');
+                    break;
+                case 'AccessDenied':
+                    this.releaseControl();
+                    this.updateStatus('No access', 'disconnected');
+                    this.log('Access denied!', 'error');
+                    break;
+                case 'ResponseUserId':
+                    this.setUserId(msg.user_id);
+                    this.log(`User ID: ${msg.user_id}`, 'success');
+                    break;
+                case 'QueuePosition':
+                    this.updateStatus(`⏳ Queue Position: ${msg.position}`, 'waiting');
+                    this.log(`Your position in queue: ${msg.position}`, 'info');
+                    break;
+                case 'ControlAction':
+                    // This message is typically for the controlling user to confirm their action,
+                    // or for all users to see the action. Given the server-side change,
+                    // it's now targeted.
+                    this.log(`Action: ${msg.action}`, 'info');
+                    break;
+                case 'Error':
+                    this.log(`Error: ${msg.message}`, 'error');
+                    break;
+                case 'UserDisconnected':
+                    this.log(`User ${msg.user_id} disconnected.`, 'info');
+                    break;
+                default:
+                    this.log(`Unknown message: ${msg.type}`, 'warning');
             }
         }
     }
