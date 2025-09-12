@@ -46,9 +46,9 @@ impl Vp8Streamer {
             .context("Failed to create udpsink")?;
 
         pipeline
-            .add_many(&[&src, &convert, &encoder, &payloader, &sink])
+            .add_many([&src, &convert, &encoder, &payloader, &sink])
             .context("Failed to add elements to pipeline")?;
-        gst::Element::link_many(&[&src, &convert, &encoder, &payloader, &sink])
+        gst::Element::link_many([&src, &convert, &encoder, &payloader, &sink])
             .context("Failed to link elements")?;
         Ok(Self { pipeline })
     }

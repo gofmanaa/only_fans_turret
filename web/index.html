@@ -156,10 +156,17 @@
             font-size: 14px;
             font-weight: bold;
         }
+        .logo {
+            width: 100%;       /* fills the container width */
+            height: auto;      /* maintains aspect ratio */
+            max-width: 100%;   /* prevents overflow */
+            display: block;    /* removes inline spacing */
+            margin: 0 auto 20px; /* center and spacing */
+        }
     </style>
 </head>
 <body>
-<img src="static/logo.png" alt="Only Turret Fans">
+<img src="static/logo.png" alt="Only Turret Fans" class="logo">
 <h1>Only Turret Fans</h1>
 
 <div class="container">
@@ -210,6 +217,9 @@
             this.user_id = 0;
             this.isRequested = false;
 
+            this.user_id = null;
+            this.user_id = localStorage.getItem("user_id") || null;
+
             this.videoStream = document.getElementById('videoStream');
             this.requestBtn = document.getElementById('requestAccessBtn');
             this.releaseBtn = document.getElementById('releaseBtn');
@@ -229,7 +239,6 @@
                 start: document.getElementById('startBtn'),
                 stop: document.getElementById('stopBtn'),
             };
-
             this.initializeWebSocket();
             this.setupEventListeners();
         }
@@ -307,13 +316,10 @@
                     throw err;
                 }
 
-                this.videoControlBtns.start.disabled = true;
-                this.videoControlBtns.stop.disabled = false;
-
                 // Start stats polling
                 this.startStatsPolling();
-            } catch (error) {
-                this.log(`WebRTC error: ${error}`, 'error');
+            } catch (_error) {
+                this.log(`WebRTC connect error`, 'error');
                 this.updateStatus('Connection Failed', 'disconnected');
             }
         }
@@ -414,6 +420,8 @@
             Object.values(this.controlBtns).forEach(btn => btn.disabled = !isEnabled);
             this.requestBtn.style.display = isEnabled ? 'none' : 'block';
             this.releaseBtn.style.display = isEnabled ? 'block' : 'none';
+            this.requestBtn.disabled = isEnabled;
+            this.releaseBtn.disabled = !isEnabled;
         }
 
         log(message, type = 'info') {
@@ -428,8 +436,13 @@
             }
         }
 
-        getUserId() { return this.user_id; }
-        setUserId(id) { this.user_id = id; }
+        getUserId() {
+            return this.user_id;
+        }
+        setUserId(id) {
+            this.user_id = id;
+            localStorage.setItem("user_id", id);
+        }
 
         handleServerMessage(msg) {
             switch (msg.type) {

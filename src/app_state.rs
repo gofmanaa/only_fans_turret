@@ -1,19 +1,10 @@
-// ===== User Session Management =====
-
 use crate::message::ServerMessage;
-use axum::extract::State;
-use axum::http::{HeaderMap, header};
-use axum::response::{Html, IntoResponse};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{Mutex, RwLock, broadcast, mpsc};
+use tokio::sync::{Mutex, RwLock, broadcast};
 use tracing::info;
-use uuid::Uuid;
-use webrtc::peer_connection::RTCPeerConnection;
 use webrtc::rtp::packet::Packet;
-use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
-use webrtc::track::track_local::track_local_static_rtp::TrackLocalStaticRTP;
 
 #[derive(Debug, Clone)]
 pub struct UserSession {
@@ -21,29 +12,17 @@ pub struct UserSession {
     pub joined_at: Instant,
     pub has_control: bool,
     pub control_granted_at: Option<Instant>,
-    pub peer_connection: Option<Arc<RTCPeerConnection>>,
-    pub video_track: Arc<TrackLocalStaticRTP>,
 }
 
 const USER_SESSION_TIMEOUT: Duration = Duration::from_secs((0.5 * 60.0) as u64);
 
 impl UserSession {
-    pub fn new(user_id: String, peer_connection: Option<Arc<RTCPeerConnection>>) -> Self {
-        let video_track = Arc::new(TrackLocalStaticRTP::new(
-            RTCRtpCodecCapability {
-                mime_type: "video/VP8".into(),
-                ..Default::default()
-            },
-            "video".into(),
-            "webrtc-rs".into(),
-        ));
+    pub fn new(user_id: String) -> Self {
         Self {
             id: user_id, //Uuid::new_v4().to_string(),
             joined_at: Instant::now(),
             has_control: false,
             control_granted_at: None,
-            peer_connection,
-            video_track,
         }
     }
 

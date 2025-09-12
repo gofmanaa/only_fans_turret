@@ -1,13 +1,11 @@
-use crate::app_state::{AppState, UserSession};
+use crate::app_state::AppState;
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::Json as AxumJson;
 use serde_json::Value;
 use std::sync::Arc;
-use std::time::Instant;
 use tracing::{error, info};
-use uuid::Uuid;
 use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
@@ -24,14 +22,24 @@ pub async fn handle_sdp_offer(
     let client_id = offer
         .get("client_id")
         .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
-        .unwrap();
-    let user_session = app_state.get_user(client_id).await.ok_or_else(|| {
-        (
-            StatusCode::NON_AUTHORITATIVE_INFORMATION,
-            "User session not found.".to_string(),
-        )
-    })?;
+        .map(String::from)
+        .ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                "client_id is missing or invalid.".to_string(),
+            )
+        })?;
+
+    let user_session = app_state
+        .get_user(client_id)
+        .await
+        .ok_or_else(|| {
+            (
+                StatusCode::NON_AUTHORITATIVE_INFORMATION,
+                "User session not found.".to_string(),
+            )
+        })?;
+
 
     let client_id = user_session.id.clone();
     info!("Processing SDP offer for client: {}", client_id);
@@ -79,7 +87,6 @@ pub async fn handle_sdp_offer(
         let track_clone = video_track.clone();
         let mut rtp_receiver = app_state.rtp_broadcast.subscribe();
         let client_id_clone = client_id.clone();
-        let app_state_clone = app_state.clone();
 
         tokio::spawn(async move {
             info!("Starting RTP forwarding for client: {}", client_id_clone);
@@ -95,30 +102,15 @@ pub async fn handle_sdp_offer(
             }
 
             info!("RTP forwarding ended for client: {}", client_id_clone);
-            // todo: dont need remove user session
-            //app_state_clone.remove_user(&client_id_clone).await;
         });
     }
 
     // PeerConnection state monitoring
     {
         let client_id_monitor = client_id.clone();
-        let app_state_monitor = app_state.clone();
-
         pc.on_peer_connection_state_change(Box::new(move |state: RTCPeerConnectionState| {
             let client_id = client_id_monitor.clone();
-            let app_state = app_state_monitor.clone();
             info!("Client {} PeerConnection state: {:?}", client_id, state);
-
-            // todo: dont need remove user session
-            // if matches!(state, RTCPeerConnectionState::Failed
-            //               | RTCPeerConnectionState::Disconnected
-            //               | RTCPeerConnectionState::Closed) {
-            //     tokio::spawn(async move {
-            //         app_state.remove_user(&client_id).await;
-            //     });
-            // }
-
             Box::pin(async {})
         }));
     }
@@ -167,16 +159,6 @@ pub async fn handle_sdp_offer(
         StatusCode::INTERNAL_SERVER_ERROR,
         "No local description available".to_string(),
     ))?;
-
-    // Register client in AppState
-    // let client = UserSession {
-    //     id: client_id.clone(),
-    //     joined_at: Instant::now(),
-    //     has_control: false,
-    //     peer_connection: Some(pc),
-    //     video_track, control_granted_at: None
-    // };
-    // app_state.add_user(client).await;
 
     let answer_json = serde_json::json!({
         "type": local_desc.sdp_type.to_string(),

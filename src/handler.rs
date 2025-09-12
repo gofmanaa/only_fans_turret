@@ -1,22 +1,14 @@
-use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 use crate::app_state::{AppState, UserSession};
 use crate::message::{ClientMessage, ServerMessage};
 use axum::{
-    Router,
     extract::{State, WebSocketUpgrade, ws::WebSocket},
-    response::{Html, IntoResponse},
-    routing::get,
+    response::IntoResponse,
 };
 use axum_extra::extract::CookieJar;
 use futures_util::{SinkExt, StreamExt};
-use serde::{Deserialize, Serialize};
-use tokio::sync::{Mutex, RwLock, broadcast};
-use tower_http::cors::CorsLayer;
-use tracing::{debug, error, info, warn};
-use uuid::Uuid;
+use tracing::{debug, info, warn};
 
 // ===== WebSocket Handler =====
 
@@ -27,11 +19,13 @@ pub(crate) async fn websocket_handler(
 ) -> impl IntoResponse {
     // Get user_id from Cookie
     let user_id = jar.get("user_id").map(|c| c.value().to_string()).unwrap();
+    debug!("user_id: {}", user_id);
+    info!("user_id: {}", user_id);
     ws.on_upgrade(|socket| handle_websocket(socket, state, user_id))
 }
 
 async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: String) {
-    let user_session = UserSession::new(user_id.clone(), None);
+    let user_session = UserSession::new(user_id.clone());
     // let user_id = user_session.id.clone();
 
     info!("New WebSocket connection: {}", user_id);
@@ -138,18 +132,18 @@ async fn handle_client_message(message: ClientMessage, user_id: &str, state: &Ar
 
         ClientMessage::ReleaseControl => {
             let mut users = state.users.write().await;
-            if let Some(user) = users.get_mut(user_id) {
-                if user.has_control {
-                    user.revoke_control();
-                    info!("User {} released control", user_id);
+            if let Some(user) = users.get_mut(user_id)
+                && user.has_control
+            {
+                user.revoke_control();
+                info!("User {} released control", user_id);
 
-                    let mut queue = state.queue.lock().await;
-                    queue.active_user = None;
-                    drop(queue);
-                    drop(users);
+                let mut queue = state.queue.lock().await;
+                queue.active_user = None;
+                drop(queue);
+                drop(users);
 
-                    state.process_queue().await;
-                }
+                state.process_queue().await;
             }
         }
 

@@ -5,6 +5,7 @@ mod message;
 mod rtp;
 mod sdp_handler;
 
+use std::path::PathBuf;
 use crate::app_state::AppState;
 use crate::gst_v8_stream::Vp8Streamer;
 use crate::handler::websocket_handler;
@@ -33,10 +34,11 @@ use webrtc::api::media_engine::MediaEngine;
 use webrtc::interceptor::registry::Registry;
 
 async fn serve_index(jar: CookieJar) -> impl IntoResponse {
-    let user_id = Uuid::new_v4().to_string();
-
+    // let mut user_id = Uuid::new_v4().to_string();
+    let user_id = jar.get("user_id").map(|c| c.value().to_string())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
     // Create cookie: Set user_id to Cookie
-    let cookie = Cookie::build(("user_id", user_id.clone()))
+    let cookie = Cookie::build(("user_id", user_id))
         .path("/")
         .secure(true)
         .http_only(true)
@@ -111,11 +113,13 @@ async fn main() -> anyhow::Result<()> {
 
     // todo: add JWT protection
 
+    let web_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("web");
+
     let app = Router::new()
         .route("/", get(serve_index))
         .route("/ws", get(websocket_handler))
         .route("/sdp", post(handle_sdp_offer))
-        .nest_service("/static", ServeDir::new("web"))
+        .nest_service("/static", ServeDir::new(web_dir))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
