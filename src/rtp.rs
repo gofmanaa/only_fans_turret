@@ -1,12 +1,13 @@
+use std::net::SocketAddr;
 use crate::app_state::AppState;
 use std::sync::Arc;
-use tokio::net::UdpSocket;
+use tokio::net::{UdpSocket};
 use tracing::{error, info};
 use webrtc::rtp::packet::Packet;
 use webrtc::util::Unmarshal;
 
 // socket_addr = "127.0.0.1:5004"
-pub fn rtp_thread(socket_addr: String, app_state: Arc<AppState>) {
+pub fn rtp_thread(socket_addr: SocketAddr, app_state: Arc<AppState>) {
     // -------------------------
     // RTP packet receiver
     // -------------------------

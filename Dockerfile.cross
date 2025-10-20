@@ -1,0 +1,32 @@
+# Dockerfile.cross
+#FROM ghcr.io/cross-rs/arm-unknown-linux-gnueabihf:latest AS cross-build
+
+#FROM ghcr.io/cross-rs/armv7-unknown-linux-gnueabihf:latest
+
+#RUN dpkg --add-architecture armhf \
+#    && apt-get update \
+#    && apt-get install -y \
+#       pkg-config \
+#       gcc-arm-linux-gnueabihf \
+#       libc6:armhf \
+#       libglib2.0-dev:armhf \
+#       libgstreamer1.0-dev:armhf \
+#       libgstreamer-plugins-base1.0-dev:armhf
+# Dockerfile.cross
+FROM ghcr.io/cross-rs/armv7-unknown-linux-gnueabihf:latest
+
+# apt-get update && apt-get install -y libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev pkg-config glib-2.0 libgirepository1.0-dev libc6 gcc-arm-linux-gnueabihf libspice-client-glib-2.0-dev
+
+RUN dpkg --add-architecture armhf \
+    && apt-get update \
+    && apt-get install -y \
+       gcc-arm-linux-gnueabihf \
+       g++-arm-linux-gnueabihf \
+       libglib2.0-dev \
+       libgstreamer1.0-dev \
+       libgstreamer-plugins-base1.0-dev \
+       pkg-config \
+       libc6 \
+       gcc-arm-linux-gnueabihf \
+       libc6-dev-armhf-cross \
+       libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev pkg-config glib-2.0 libgirepository1.0-dev libc6 gcc-arm-linux-gnueabihf libspice-client-glib-2.0-dev

@@ -10,7 +10,6 @@ use axum_extra::extract::CookieJar;
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
-
 // ===== WebSocket Handler =====
 
 pub(crate) async fn websocket_handler(
@@ -108,38 +107,62 @@ async fn handle_client_message(message: ClientMessage, user_id: &str, state: &Ar
         }
 
         ClientMessage::Control { action } => {
-            let users = state.users.read().await;
-            if let Some(user) = users.get(user_id) {
+            let mut users = state.users.write().await;  // write, not read
+            if let Some(user) = users.get_mut(user_id) {
                 if user.has_control && !user.is_control_expired() {
-                    info!("User {} performed control action: {}", user_id, action);
+                    info!("User has control: {}; can do action: {:?}", user.has_control, user.can_do_action());
 
-                    state.send_message_to_user(user_id, ServerMessage::ControlAction {
-                        user_id: user_id.to_string(),
-                        action,
-                    }).await;
+                    if user.can_do_action() {
+                        user.record_action(); // now we record only after passing rate-limit check
+
+                        let service = state.action_service.clone();
+                        if let Err(e) = service.send_action(action).await {
+                            warn!("Failed to send action {:?}: {}", action, e);
+                            return;
+                        }
+                    }
+
+                    state.send_message_to_user(
+                        user_id,
+                        ServerMessage::ControlAction {
+                            user_id: user_id.to_string(),
+                            action,
+                        }
+                    ).await;
                 } else {
                     warn!("User {} attempted control without permission", user_id);
 
-                    state.send_message_to_user(user_id, ServerMessage::AccessDenied {
-                        user_id: user_id.to_string(),
-                    }).await;
+                    state.send_message_to_user(
+                        user_id,
+                        ServerMessage::AccessDenied {
+                            user_id: user_id.to_string(),
+                        }
+                    ).await;
                 }
             }
         }
 
         ClientMessage::ReleaseControl => {
-            let mut users = state.users.write().await;
-            if let Some(user) = users.get_mut(user_id)
-                && user.has_control
-            {
-                user.revoke_control();
-                info!("User {} released control", user_id);
+            let should_process = {
+                let mut users = state.users.write().await;
+                if let Some(user) = users.get_mut(user_id) {
+                    if user.has_control {
+                        user.revoke_control();
+                        info!("User {} released control", user_id);
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            };
 
-                let mut queue = state.queue.lock().await;
-                queue.active_user = None;
-                drop(queue);
-                drop(users);
-
+            if should_process {
+                {
+                    let mut queue = state.queue.lock().await;
+                    queue.deactivate();
+                }
                 state.process_queue().await;
             }
         }
@@ -152,6 +175,11 @@ async fn handle_client_message(message: ClientMessage, user_id: &str, state: &Ar
                 }).await;
                 info!("ResponseUserId {}", user_id);
             }
+        }
+
+        ClientMessage::UserDisconnected { user_id } => {
+            info!("User {} disconnected", user_id);
+            state.remove_user(&user_id).await;
         }
     }
 }

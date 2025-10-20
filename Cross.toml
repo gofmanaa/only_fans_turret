@@ -1,0 +1,6 @@
+# Cross.toml
+[target.arm-unknown-linux-gnueabihf]
+#[target.armv7-unknown-linux-gnueabihf]
+#dockerfile = "Dockerfile.cross"
+pre-build = ["apt-get update && apt-get install -y libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev pkg-config glib-2.0 libgirepository1.0-dev libc6 gcc-arm-linux-gnueabihf libspice-client-glib-2.0-dev"]
+#env = { PKG_CONFIG = "arm-linux-gnueabihf-pkg-config", PKG_CONFIG_PATH = "/usr/lib/arm-linux-gnueabihf/pkgconfig", LIBRARY_PATH = "/usr/lib/arm-linux-gnueabihf", LD_LIBRARY_PATH = "/usr/lib/arm-linux-gnueabihf" }

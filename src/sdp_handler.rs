@@ -1,8 +1,8 @@
 use crate::app_state::AppState;
-use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::Json as AxumJson;
+use axum::Json;
 use serde_json::Value;
 use std::sync::Arc;
 use tracing::{error, info};
@@ -11,8 +11,8 @@ use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
-use webrtc::track::track_local::TrackLocalWriter;
 use webrtc::track::track_local::track_local_static_rtp::TrackLocalStaticRTP;
+use webrtc::track::track_local::TrackLocalWriter;
 
 /// Handle SDP offer from client and create peer connection
 pub async fn handle_sdp_offer(
@@ -30,16 +30,12 @@ pub async fn handle_sdp_offer(
             )
         })?;
 
-    let user_session = app_state
-        .get_user(client_id)
-        .await
-        .ok_or_else(|| {
-            (
-                StatusCode::NON_AUTHORITATIVE_INFORMATION,
-                "User session not found.".to_string(),
-            )
-        })?;
-
+    let user_session = app_state.get_user(&client_id).await.ok_or_else(|| {
+        (
+            StatusCode::NON_AUTHORITATIVE_INFORMATION,
+            "User session not found.".to_string(),
+        )
+    })?;
 
     let client_id = user_session.id.clone();
     info!("Processing SDP offer for client: {}", client_id);
