@@ -1,3 +1,4 @@
+use crate::actions::Action;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -8,16 +9,6 @@ pub enum ClientMessage {
     ReleaseControl,
     GetUserId,
     UserDisconnected { user_id: String }, //todo: not implemented
-}
-
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "UPPERCASE")]
-pub enum Action {
-    Right,
-    Left,
-    Up,
-    Down,
-    Fire,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

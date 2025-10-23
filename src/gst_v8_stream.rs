@@ -1,14 +1,13 @@
-
 #[cfg(feature = "gstream")]
-pub(crate) mod gstream {
+pub mod gstream {
+    use anyhow::Context;
+    use gst::prelude::*;
+    use gstreamer as gst;
     use std::net::SocketAddr;
     use std::path::PathBuf;
     use std::sync::Arc;
     use std::thread::available_parallelism;
     use std::time::Duration;
-    use anyhow::{Context};
-    use gst::prelude::*;
-    use gstreamer as gst;
 
     use tracing::{debug, error, info};
 
@@ -23,7 +22,9 @@ pub(crate) mod gstream {
     impl Vp8Streamer {
         /// Create a new streamer
         fn new(device: &str, url: SocketAddr) -> anyhow::Result<Vp8Streamer> {
-            gst::init().context("Failed to initialize GStreamer").expect("Failed to initialize GStreamer");
+            gst::init()
+                .context("Failed to initialize GStreamer")
+                .expect("Failed to initialize GStreamer");
 
             let pipeline = gst::Pipeline::new();
 
@@ -34,7 +35,8 @@ pub(crate) mod gstream {
 
             let convert = gst::ElementFactory::make("videoconvert")
                 .build()
-                .context("Failed to create videoconvert").expect("Failed to create video convert");
+                .context("Failed to create videoconvert")
+                .expect("Failed to create video convert");
 
             let default_parallelism_approx = available_parallelism()?.get();
 
@@ -42,24 +44,29 @@ pub(crate) mod gstream {
                 .property("deadline", 1i64)
                 .property("threads", default_parallelism_approx as i32)
                 .build()
-                .context("Failed to create vp8enc").expect("Failed to create vp8enc");
+                .context("Failed to create vp8enc")
+                .expect("Failed to create vp8enc");
 
             let payloader = gst::ElementFactory::make("rtpvp8pay")
                 .property("pt", 96u32)
                 .build()
-                .context("Failed to create rtpvp8pay").expect("Failed to create rtpvp8pay");
+                .context("Failed to create rtpvp8pay")
+                .expect("Failed to create rtpvp8pay");
 
             let sink = gst::ElementFactory::make("udpsink")
                 .property("host", url.ip().to_string())
                 .property("port", url.port() as i32)
                 .build()
-                .context("Failed to create udpsink").expect("Failed to create udpsink");
+                .context("Failed to create udpsink")
+                .expect("Failed to create udpsink");
 
             pipeline
                 .add_many([&src, &convert, &encoder, &payloader, &sink])
-                .context("Failed to add elements to pipeline").expect("Failed to add elements to pipeline");
+                .context("Failed to add elements to pipeline")
+                .expect("Failed to add elements to pipeline");
             gst::Element::link_many([&src, &convert, &encoder, &payloader, &sink])
-                .context("Failed to link elements").expect("Failed to link elements");
+                .context("Failed to link elements")
+                .expect("Failed to link elements");
             Ok(Self { pipeline })
         }
 
@@ -83,15 +90,24 @@ pub(crate) mod gstream {
         }
     }
 
+    pub fn video_stream_start(
+        video_dev: PathBuf,
+        v8stream_url: SocketAddr,
+    ) -> std::thread::JoinHandle<()> {
+        info!(
+            "Video device: {}, stream to {}",
+            video_dev.display(),
+            v8stream_url
+        );
 
-    pub fn video_stream_start(video_dev: PathBuf, v8stream_url: SocketAddr) -> std::thread::JoinHandle<()> {
         // -------------------------
         // Vp8VideoStream
         // -------------------------
 
-        let streamer = Arc::new(Vp8Streamer::new(
-            video_dev.to_str().unwrap(),
-            v8stream_url).expect("Failed to create video streamer"));
+        let streamer = Arc::new(
+            Vp8Streamer::new(video_dev.to_str().unwrap(), v8stream_url)
+                .expect("Failed to create video streamer"),
+        );
 
         std::thread::spawn(move || {
             if let Err(e) = streamer.start() {
@@ -106,5 +122,4 @@ pub(crate) mod gstream {
             }
         })
     }
-
 }

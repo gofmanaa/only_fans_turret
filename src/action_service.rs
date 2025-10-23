@@ -1,9 +1,12 @@
+use crate::actions::Action;
 use std::{path::Path, sync::Arc, time::Duration};
-use tokio::{io::{AsyncBufReadExt, AsyncWriteExt, BufReader}, sync::Mutex, time::Instant};
+use tokio::{
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    sync::Mutex,
+    time::Instant,
+};
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
-use tracing::{info, warn};
-
-use crate::message::Action;
+use tracing::{error, info, warn};
 
 pub struct ActionService {
     writer: Arc<Mutex<tokio::io::WriteHalf<SerialStream>>>,
@@ -13,8 +16,10 @@ pub struct ActionService {
 impl ActionService {
     /// Create a new ActionService and start reading Arduino output
     pub async fn new(path: &Path, baud_rate: u32) -> anyhow::Result<Self> {
+        info!("Open serial port at {}", path.display());
         let port = tokio_serial::new(path.display().to_string(), baud_rate)
-            .open_native_async()?;
+            .open_native_async()
+            .expect("Could not open serial port");
 
         // Split serial stream into reader and writer
         let (reader, writer) = tokio::io::split(port);
@@ -22,6 +27,7 @@ impl ActionService {
 
         // Spawn background task to read Arduino output
         tokio::spawn(async move {
+            info!("Starting Arduino Reader");
             let mut reader = BufReader::new(reader);
             let mut line = String::new();
 
@@ -31,7 +37,7 @@ impl ActionService {
                     Ok(0) => break, // port closed
                     Ok(_) => info!("Arduino: {}", line.trim()),
                     Err(e) => {
-                        eprintln!("Serial read error: {}", e);
+                        warn!("Serial read error: {}", e);
                         break;
                     }
                 }
@@ -49,16 +55,16 @@ impl ActionService {
         let mut last = self.last_action.lock().await;
         let now = Instant::now();
 
-        if let Some(last_time) = *last {
-            if now.duration_since(last_time) < Duration::from_millis(300) {
-                warn!("Action {:?} rejected: cooldown active", action);
-                return Ok(());
-            }
+        if let Some(last_time) = *last
+            && now.duration_since(last_time) < Duration::from_millis(300)
+        {
+            warn!("Action {:?} rejected: cooldown active", action);
+            return Ok(());
         }
 
         *last = Some(now);
 
-        let command_str = Self::action_to_command(action.clone());
+        let command_str = Self::action_to_command(action);
         info!("Sending action {:?} as command {}", action, command_str);
 
         // Write command to Arduino
@@ -73,10 +79,10 @@ impl ActionService {
     fn action_to_command(action: Action) -> String {
         match action {
             Action::Right => "H1".to_string(),
-            Action::Left  => "H-1".to_string(),
-            Action::Up    => "V-1".to_string(),
-            Action::Down  => "V1".to_string(),
-            Action::Fire  => "FIRE".to_string(),
+            Action::Left => "H-1".to_string(),
+            Action::Up => "V-1".to_string(),
+            Action::Down => "V1".to_string(),
+            Action::Fire => "FIRE".to_string(),
         }
     }
 }

@@ -1,0 +1,39 @@
+services:
+  http_server:
+    depends_on:
+      - device_server
+    container_name: http_server
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["http_server"]
+    environment:
+      SERVER_ADDR: "0.0.0.0:8080"
+      DEVICE_SERVER_ADDR: "http://device_server:5001"
+      RTP_ADDR: "0.0.0.0:5004"
+      RUST_LOG: "info"
+    ports:
+      - "8080:8080"   # server address
+    restart: no #unless-stopped
+    tty: true
+
+  device_server:
+    container_name: device_server
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["device_server"]
+    environment:
+      GRPC_ADDR: "0.0.0.0:5001"
+      STTY_PATH: "/dev/ttyUSB0"
+      BAUD_RATE: "9600"
+      VIDEO_DEV: "/dev/video0"
+      V8STREAM_URL: "0.0.0.0:5004"
+      RUST_LOG: "info"
+    ports:
+      - "5001:5001"
+    devices:
+      - "/dev/ttyUSB0:/dev/ttyUSB0"   # serial device
+      - "/dev/video0:/dev/video0"     # camera input
+    restart: no #unless-stopped
+    tty: true

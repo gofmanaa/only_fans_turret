@@ -1,7 +1,7 @@
-use std::net::SocketAddr;
 use crate::app_state::AppState;
+use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::net::{UdpSocket};
+use tokio::net::UdpSocket;
 use tracing::{error, info};
 use webrtc::rtp::packet::Packet;
 use webrtc::util::Unmarshal;

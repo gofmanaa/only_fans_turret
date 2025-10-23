@@ -3,27 +3,33 @@ name = "diplom_only_fans_turret"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "main"
+path = "src/main.rs"
+
+[[bin]]
+name = "device_server"
+path = "src/device_server.rs"
+
 [dependencies]
 tokio = { version = "1.0", features = ["full"] }
 axum = { version = "0.8.3", features = ["ws", "json", "http1"], default-features = false }
-#tower = "0.4"
 tower-http = { version = "0.5", features = ["fs", "cors"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 uuid = { version = "1.0", features = ["v4"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-#tokio-tungstenite = "0.20"
 webrtc = "0.8"
 futures-util = "0.3"
 anyhow = "1.0"
-#chrono = "0.4.41"
 axum-extra = { version = "0.10.1", features = ["cookie"] }
 gstreamer = { version = "0.24.1",  default-features = false, optional = true }
-url = "2.5.7"
-clap = { version = "4.5.48", features = ["derive"] }
+clap = { version = "4.5.48", features = ["derive", "env"] }
 tokio-serial = "5.4.5"
-#gstreamer-video = "0.24.1"
+tonic = "0.14.2"
+prost = "0.14.1"
+tonic-prost = "0.14.2"
 #tracing-loki = { version = "0.2.6",  default-features = false, features = ["compat-0-2-1"] }
 
 [target.arm-unknown-linux-gnueabihf]
@@ -32,3 +38,6 @@ dockerfile = "Dockerfile.cross"
 [features]
 default = []
 gstream = ["gstreamer"]
+
+[build-dependencies]
+tonic-prost-build= "0.14.2"

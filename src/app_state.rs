@@ -1,11 +1,11 @@
-use crate::action_service::ActionService;
+use crate::devices::pb::device_client::DeviceClient;
 use crate::message::ServerMessage;
 use axum::extract::ws::Message;
 use serde_json::to_string;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{broadcast, mpsc, Mutex, RwLock};
+use tokio::sync::{Mutex, RwLock, broadcast, mpsc};
 use tracing::{info, warn};
 use webrtc::rtp::packet::Packet;
 
@@ -122,7 +122,7 @@ pub struct AppState {
     pub user_ws_senders: UserWSSender,
     pub rtp_broadcast: broadcast::Sender<Packet>,
     pub(crate) api: Arc<webrtc::api::API>,
-    pub action_service: Arc<ActionService>,
+    pub device_client: Arc<Mutex<DeviceClient<tonic::transport::Channel>>>,
 }
 
 impl Clone for AppState {
@@ -133,21 +133,24 @@ impl Clone for AppState {
             user_ws_senders: Arc::clone(&self.user_ws_senders),
             rtp_broadcast: self.rtp_broadcast.clone(),
             api: Arc::clone(&self.api),
-            action_service: Arc::clone(&self.action_service),
+            device_client: Arc::clone(&self.device_client),
         }
     }
 }
 
 impl AppState {
-    pub fn new(api: webrtc::api::API, action_service: Arc<ActionService>) -> Self {
+    pub fn new(
+        api: Arc<webrtc::api::API>,
+        device_client: Arc<Mutex<DeviceClient<tonic::transport::Channel>>>,
+    ) -> Self {
         let (rtp_broadcast, _) = broadcast::channel(1000);
         Self {
             users: Arc::new(RwLock::new(HashMap::new())),
             queue: Arc::new(Mutex::new(AccessQueue::new())),
             user_ws_senders: Arc::new(RwLock::new(HashMap::new())),
             rtp_broadcast,
-            api: Arc::new(api),
-            action_service,
+            api,
+            device_client,
         }
     }
 
@@ -203,7 +206,7 @@ impl AppState {
         if let Some(ref active) = active_id {
             let expired = {
                 let users = self.users.read().await;
-                users.get(active).map_or(true, |u| u.is_control_expired())
+                users.get(active).is_none_or(|u| u.is_control_expired())
             };
             if expired {
                 info!("User {} expired, control revoked", active);
@@ -219,18 +222,18 @@ impl AppState {
         }
 
         // Grant next user control
-        if let Some(next) = next_user {
-            if let Some(user) = self.users.write().await.get_mut(&next) {
-                user.grant_control();
-                info!("User {} granted control", next);
-                self.send_message_to_user(
-                    &next,
-                    ServerMessage::AccessGranted {
-                        user_id: next.clone(),
-                    },
-                )
-                .await;
-            }
+        if let Some(next) = next_user
+            && let Some(user) = self.users.write().await.get_mut(&next)
+        {
+            user.grant_control();
+            info!("User {} granted control", next);
+            self.send_message_to_user(
+                &next,
+                ServerMessage::AccessGranted {
+                    user_id: next.clone(),
+                },
+            )
+            .await;
         }
 
         // Notify waiting users about their queue position
