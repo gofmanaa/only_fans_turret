@@ -4,7 +4,7 @@ class WSController {
         this.pc = null;
         this.hasControl = false;
         this.user_id = 0;
-        this.isRequested = false;
+        this.position = 0;
 
         this.user_id = null;
         this.user_id = localStorage.getItem("user_id") || null;
@@ -51,11 +51,16 @@ class WSController {
             this.log('Disconnected from server', 'error');
             this.updateStatus('Disconnected', 'disconnected');
             this.hasControl = false;
+            this.position = 0;
             this.updateControlButtons();
 
             setTimeout(() => this.initializeWebSocket(), 3000);
         };
-        this.ws.onerror = (error) => this.log(`WebSocket error: ${error}`, 'error');
+        this.ws.onerror = (event) => {
+            this.log(`WebSocket closed`, 'error')
+            this.position = 0;
+            console.error('WebSocket error event:', event);
+        };
     }
 
     async startWebRTC() {
@@ -171,7 +176,6 @@ class WSController {
 
     sendRequestAccess() {
         this.sendMessage({ type: 'RequestAccess' });
-        this.isRequested = true;
         this.requestBtn.disabled = true;
         this.requestBtn.textContent = '⏳ Requesting...';
         this.log('Requesting access...', 'info');
@@ -180,6 +184,7 @@ class WSController {
 
     releaseControl() {
         this.hasControl = false;
+        this.position = 0;
         this.requestBtn.textContent = '🎯 Request Access';
         this.updateControlButtons();
         this.updateStatus('Released control', 'waiting');
@@ -268,7 +273,10 @@ class WSController {
                 break;
             case 'QueuePosition':
                 this.updateStatus(`⏳ Queue Position: ${msg.position}`, 'waiting');
-                this.log(`Your position in queue: ${msg.position}`, 'info');
+                if (this.position !== msg.position) {
+                    this.log(`Your position in queue: ${msg.position}`, 'info');
+                    this.position = msg.position;
+                }
                 break;
             case 'ControlAction':
                 // This message is typically for the controlling user to confirm their action,

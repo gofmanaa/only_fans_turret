@@ -6,6 +6,7 @@ use tonic::service::Interceptor;
 use tonic::{Request, Response, Status};
 use tracing::info;
 
+#[allow(dead_code)]
 pub struct GrpcDeviceServer {
     pub action_service: ActionService,
 }
@@ -47,6 +48,7 @@ impl Interceptor for GrpcDeviceServer {
     }
 }
 
+#[allow(dead_code)]
 impl GrpcDeviceServer {
     pub fn new(action_service: ActionService) -> Self {
         Self { action_service }

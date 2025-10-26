@@ -59,6 +59,9 @@ async fn main() -> anyhow::Result<()> {
     });
 
     #[cfg(feature = "gstream")]
+    info!("GStream enabled!");
+
+    #[cfg(feature = "gstream")]
     let video_handle = video_stream_start(cli.video_dev, cli.v8stream_url);
 
     // Wait for Ctrl+C
@@ -72,3 +75,5 @@ async fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+

@@ -12,7 +12,6 @@ use webrtc::rtp::packet::Packet;
 #[derive(Debug, Clone)]
 pub struct UserSession {
     pub id: String,
-    pub joined_at: Instant,
     pub has_control: bool,
     pub control_granted_at: Option<Instant>,
     last_action_at: Option<Instant>,
@@ -24,7 +23,6 @@ impl UserSession {
     pub fn new(user_id: impl Into<String>) -> Self {
         Self {
             id: user_id.into(),
-            joined_at: Instant::now(),
             has_control: false,
             control_granted_at: None,
             last_action_at: None,

@@ -49,8 +49,6 @@ pub(crate) async fn websocket_handler(
 
 async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: String) {
     let user_session = UserSession::new(user_id.clone());
-    let user_id_for_senders = user_id.clone(); // Clone user_id for storing in user_ws_senders
-
     info!("New WebSocket connection: {}", user_id);
 
     state.add_user(user_session).await;
@@ -58,6 +56,7 @@ async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: Stri
     let (mut ws_sender, mut ws_receiver) = socket.split();
     let (tx, mut rx) = mpsc::channel::<Message>(100); // Channel for sending messages to this specific user
 
+    let user_id_for_senders = user_id.clone();
     // Store the sender for this user
     state
         .user_ws_senders

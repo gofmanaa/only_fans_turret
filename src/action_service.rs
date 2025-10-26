@@ -5,6 +5,7 @@ use tokio::{
     sync::Mutex,
     time::Instant,
 };
+use tokio::time::sleep;
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
 use tracing::{error, info, warn};
 
@@ -15,14 +16,13 @@ pub struct ActionService {
 
 impl ActionService {
     /// Create a new ActionService and start reading Arduino output
+    #[allow(dead_code)]
     pub async fn new(path: &Path, baud_rate: u32) -> anyhow::Result<Self> {
         info!("Open serial port at {}", path.display());
-        let port = tokio_serial::new(path.display().to_string(), baud_rate)
-            .open_native_async()
-            .expect("Could not open serial port");
 
+        let port_stream = connect_devic(path, baud_rate).await?;
         // Split serial stream into reader and writer
-        let (reader, writer) = tokio::io::split(port);
+        let (reader, writer) = tokio::io::split(port_stream);
         let writer = Arc::new(Mutex::new(writer));
 
         // Spawn background task to read Arduino output
@@ -83,6 +83,32 @@ impl ActionService {
             Action::Up => "V-1".to_string(),
             Action::Down => "V1".to_string(),
             Action::Fire => "FIRE".to_string(),
+        }
+    }
+}
+
+#[allow(dead_code)]
+async fn connect_devic(
+    path: &Path,
+    baud_rate: u32,
+) -> anyhow::Result<SerialStream> {
+    let mut retries = 0;
+
+    loop {
+        match tokio_serial::new(path.display().to_string(), baud_rate).open_native_async() {
+            Ok(client) => {
+                info!("Connected to device at {}", path.display());
+                return Ok(client);
+            }
+            Err(e) => {
+                retries += 1;
+                error!(
+                    "Failed to connect to device {} (attempt {}): {}",
+                    path.display(), retries, e
+                );
+
+                sleep(Duration::from_secs(2)).await;
+            }
         }
     }
 }

@@ -21,10 +21,11 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
-use tonic::transport::{Channel, Error};
+use tonic::transport::{Channel, Endpoint, Error};
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
-use tracing::info;
+use tower_http::trace::TraceLayer;
+use tracing::{error, info};
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -35,18 +36,18 @@ use webrtc::interceptor::registry::Registry;
 
 #[derive(Parser)]
 struct Cli {
-    #[clap(short, long, default_value = "127.0.0.1:8080", env = "SERVER_ADDR")]
+    #[clap(short, long, default_value = "0.0.0.0:8080", env = "SERVER_ADDR")]
     servet_addr: SocketAddr,
 
     #[clap(
         short,
         long,
-        default_value = "127.0.0.1:5001",
+        default_value = "grpc://127.0.0.1:5001",
         env = "DEVICE_SERVER_ADDR"
     )]
     device_server: String,
 
-    #[clap(short, long, default_value = "127.0.0.1:5004", env = "RTP_ADDR")]
+    #[clap(short, long, default_value = "0.0.0.0:5004", env = "RTP_ADDR")]
     rtp_addr: SocketAddr,
 }
 
@@ -85,7 +86,6 @@ async fn main() -> anyhow::Result<()> {
             .build(),
     );
 
-    //let device_server = format!("http://{}", cli.device_server);
     let device_gpc_client = connect_device_server(&cli.device_server).await?;
 
     let state = Arc::new(AppState::new(api, device_gpc_client));
@@ -111,6 +111,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/sdp", post(handle_sdp_offer))
         .nest_service("/static", ServeDir::new(web_dir))
         .layer(CorsLayer::permissive())
+        .layer(TraceLayer::new_for_http())
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(cli.servet_addr.to_owned()).await?;
@@ -128,14 +129,18 @@ async fn connect_device_server(
     let mut retries = 0;
 
     loop {
-        match DeviceClient::connect(device_server.to_string()).await {
+        let endpoint = Endpoint::from_shared(device_server.to_string())?;
+
+        //match DeviceClient::connect(device_server.to_string()).await {
+        match endpoint.connect().await {
             Ok(client) => {
-                println!("Connected to device server at {}", device_server);
+                info!("Connected to device server at {}", &device_server);
+                let client = DeviceClient::new(client);
                 return Ok(Arc::new(Mutex::new(client)));
             }
             Err(e) => {
                 retries += 1;
-                eprintln!(
+                error!(
                     "Failed to connect to device server {} (attempt {}): {}",
                     device_server, retries, e
                 );
