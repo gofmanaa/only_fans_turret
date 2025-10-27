@@ -9,7 +9,7 @@ pub mod gstream {
     use std::thread::available_parallelism;
     use std::time::Duration;
 
-    use tracing::{debug, error, info};
+    use tracing::{error, info};
 
     /// Struct representing the VP8 UDP streamer
     struct Vp8Streamer {
@@ -78,6 +78,7 @@ pub mod gstream {
         }
 
         /// Stop streaming
+        #[allow(dead_code)]
         fn stop(&self) -> anyhow::Result<()> {
             self.pipeline.set_state(gst::State::Null)?;
             info!("Vp8Streamer stop.");
@@ -85,6 +86,7 @@ pub mod gstream {
         }
 
         /// Access the GStreamer bus for event handling
+        #[allow(dead_code)]
         fn bus(&self) -> gst::Bus {
             self.pipeline.bus().unwrap()
         }

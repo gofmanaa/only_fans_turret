@@ -1,5 +1,5 @@
 use super::pb::device_server::{Device, DeviceServer};
-use crate::action_service::ActionService;
+use crate::action_service::{ActionService, Turret};
 use crate::actions::Action;
 use crate::devices::pb::{CommandRequest, CommandResponse};
 use tonic::service::Interceptor;
@@ -8,7 +8,7 @@ use tracing::info;
 
 #[allow(dead_code)]
 pub struct GrpcDeviceServer {
-    pub action_service: ActionService,
+    pub action_service: ActionService<Turret>,
 }
 
 #[tonic::async_trait]
@@ -50,7 +50,7 @@ impl Interceptor for GrpcDeviceServer {
 
 #[allow(dead_code)]
 impl GrpcDeviceServer {
-    pub fn new(action_service: ActionService) -> Self {
+    pub fn new(action_service: ActionService<Turret>) -> Self {
         Self { action_service }
     }
 

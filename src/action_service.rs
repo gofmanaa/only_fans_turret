@@ -1,5 +1,6 @@
 use crate::actions::Action;
 use std::{path::Path, sync::Arc, time::Duration};
+use std::marker::PhantomData;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     sync::Mutex,
@@ -9,12 +10,27 @@ use tokio::time::sleep;
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
 use tracing::{error, info, warn};
 
-pub struct ActionService {
-    writer: Arc<Mutex<tokio::io::WriteHalf<SerialStream>>>,
-    last_action: Arc<Mutex<Option<Instant>>>,
+pub struct Turret;
+
+impl Turret {
+    fn action_to_command(action: Action) -> String {
+        match action {
+            Action::Right => "H1".to_string(),
+            Action::Left => "H-1".to_string(),
+            Action::Up => "V-1".to_string(),
+            Action::Down => "V1".to_string(),
+            Action::Fire => "FIRE".to_string(),
+        }
+    }
 }
 
-impl ActionService {
+pub struct ActionService<D> {
+    writer: Arc<Mutex<tokio::io::WriteHalf<SerialStream>>>,
+    last_action: Arc<Mutex<Option<Instant>>>,
+    device: PhantomData<D>,
+}
+
+impl ActionService<Turret> {
     /// Create a new ActionService and start reading Arduino output
     #[allow(dead_code)]
     pub async fn new(path: &Path, baud_rate: u32) -> anyhow::Result<Self> {
@@ -47,6 +63,7 @@ impl ActionService {
         Ok(Self {
             writer,
             last_action: Arc::new(Mutex::new(None)),
+            device: PhantomData,
         })
     }
 
@@ -77,13 +94,7 @@ impl ActionService {
     }
 
     fn action_to_command(action: Action) -> String {
-        match action {
-            Action::Right => "H1".to_string(),
-            Action::Left => "H-1".to_string(),
-            Action::Up => "V-1".to_string(),
-            Action::Down => "V1".to_string(),
-            Action::Fire => "FIRE".to_string(),
-        }
+        Turret::action_to_command(action)
     }
 }
 
