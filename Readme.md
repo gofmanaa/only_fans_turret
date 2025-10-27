@@ -2,7 +2,12 @@
 
 ## Description
 
-This project is a platform for managing and streaming video from various devices. It includes a Rust-based backend with gRPC services for device communication and control, as well as a web-based frontend for user interaction. The "only_fans_turret" name suggests a specific application or target for the platform, possibly related to remote monitoring or surveillance.
+**OnlyFansTurret** is an interactive web service that allows users to remotely control a toy turret and watch its live video stream.
+
+At any given time, **one user has full control** over the turret, including rotation, tilt, and firing rockets.  
+Other users can **only watch the camera feed**.
+
+Access is managed through a **queue system**: the next user in line gains control once the current session ends.
 
 ## Features
 
@@ -32,29 +37,6 @@ This project is a platform for managing and streaming video from various devices
 3.  **Access the web interface:**
 
     Open your web browser and navigate to the appropriate address (e.g., `http://localhost`).
-
-## Project Structure
-
-*   `.dockerignore`, `Dockerfile`, `docker-compose.yml`: Docker-related files for containerization.
-*   `Cargo.lock`, `Cargo.toml`: Rust project configuration and dependencies.
-*   `proto/`: Protocol buffer definitions for gRPC.
-*   `src/`: Source code.
-    *   `src/action_service.rs`, `src/actions.rs`: Action-related services and definitions.
-    *   `src/app_state.rs`: Application state management.
-    *   `src/device_server.rs`: gRPC server for device communication.
-    *   `src/gst_v8_stream.rs`: GStreamer and V8 integration for streaming.
-    *   `src/handler.rs`: Request handlers.
-    *   `src/main.rs`: Main application entry point.
-    *   `src/message.rs`: Message handling.
-    *   `src/rtp.rs`: RTP-related functionality.
-    *   `src/sdp_handler.rs`: SDP handling.
-    *   `src/devices/`: Device-specific implementations.
-    *   `src/devices/grpc_server.rs`: gRPC server for devices.
-    *   `src/devices/mod.rs`: Device module definition.
-*   `web/`: Web interface files.
-    *   `web/index.html`: Main HTML file.
-    *   `web/script.js`: JavaScript file.
-    *   `web/logo.png`: Logo image.
 
 ## Contributing
 
