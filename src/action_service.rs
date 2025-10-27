@@ -1,18 +1,20 @@
 use crate::actions::Action;
-use std::{path::Path, sync::Arc, time::Duration};
 use std::marker::PhantomData;
+use std::{path::Path, sync::Arc, time::Duration};
+use tokio::time::sleep;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     sync::Mutex,
     time::Instant,
 };
-use tokio::time::sleep;
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 pub struct Turret;
 
 impl Turret {
+
+    /// Actions are converted into serial port commands
     fn action_to_command(action: Action) -> String {
         match action {
             Action::Right => "H1".to_string(),
@@ -36,7 +38,8 @@ impl ActionService<Turret> {
     pub async fn new(path: &Path, baud_rate: u32) -> anyhow::Result<Self> {
         info!("Open serial port at {}", path.display());
 
-        let port_stream = connect_devic(path, baud_rate).await?;
+        let port_stream = connect_devic_retry(path, baud_rate).await?;
+        
         // Split serial stream into reader and writer
         let (reader, writer) = tokio::io::split(port_stream);
         let writer = Arc::new(Mutex::new(writer));
@@ -99,10 +102,7 @@ impl ActionService<Turret> {
 }
 
 #[allow(dead_code)]
-async fn connect_devic(
-    path: &Path,
-    baud_rate: u32,
-) -> anyhow::Result<SerialStream> {
+async fn connect_devic_retry(path: &Path, baud_rate: u32) -> anyhow::Result<SerialStream> {
     let mut retries = 0;
 
     loop {
@@ -113,9 +113,11 @@ async fn connect_devic(
             }
             Err(e) => {
                 retries += 1;
-                error!(
+                warn!(
                     "Failed to connect to device {} (attempt {}): {}",
-                    path.display(), retries, e
+                    path.display(),
+                    retries,
+                    e
                 );
 
                 sleep(Duration::from_secs(2)).await;

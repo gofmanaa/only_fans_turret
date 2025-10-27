@@ -8,7 +8,7 @@ pub enum ClientMessage {
     Control { action: Action },
     ReleaseControl,
     GetUserId,
-    UserDisconnected { user_id: String }, //todo: not implemented
+    UserDisconnected { user_id: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,7 +18,5 @@ pub enum ServerMessage {
     AccessDenied { user_id: String },
     QueuePosition { user_id: String, position: usize },
     ControlAction { user_id: String, action: Action },
-
-    Error { user_id: String, message: String }, //todo: not implemented
     ResponseUserId { user_id: String },
 }

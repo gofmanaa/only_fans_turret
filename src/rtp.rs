@@ -6,7 +6,6 @@ use tracing::{error, info};
 use webrtc::rtp::packet::Packet;
 use webrtc::util::Unmarshal;
 
-// socket_addr = "127.0.0.1:5004"
 pub fn rtp_thread(socket_addr: SocketAddr, app_state: Arc<AppState>) {
     // -------------------------
     // RTP packet receiver
@@ -21,7 +20,11 @@ pub fn rtp_thread(socket_addr: SocketAddr, app_state: Arc<AppState>) {
                 return;
             }
         };
-        info!("Listening for RTP packets on 127.0.0.1:5004");
+        info!(
+            "Listening for RTP packets on {}:{}",
+            socket_addr.ip(),
+            socket_addr.port()
+        );
         let mut buf = [0u8; 2048];
 
         loop {
@@ -30,7 +33,6 @@ pub fn rtp_thread(socket_addr: SocketAddr, app_state: Arc<AppState>) {
                     let mut raw = &buf[..n];
                     match Packet::unmarshal(&mut raw) {
                         Ok(packet) => {
-                            // println!("Received packet {:?}", packet.payload.len());
                             // Broadcast RTP packet to all clients
                             let _ = rtp_state.rtp_broadcast.send(packet);
                         }

@@ -16,7 +16,6 @@ use axum::Router;
 use axum::routing::{get, post};
 use clap::Parser;
 use std::net::SocketAddr;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -32,6 +31,8 @@ use tracing_subscriber::util::SubscriberInitExt;
 use webrtc::api::APIBuilder;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::MediaEngine;
+use webrtc::api::setting_engine::SettingEngine;
+use webrtc::ice::network_type::NetworkType;
 use webrtc::interceptor::registry::Registry;
 
 #[derive(Parser)]
@@ -79,8 +80,12 @@ async fn main() -> anyhow::Result<()> {
     let mut registry = Registry::new();
     registry = register_default_interceptors(registry, &mut m)?;
 
+    let mut setting_engine = SettingEngine::default();
+    setting_engine.set_network_types(vec![NetworkType::Udp4]); // Needed for IPv4
+
     let api = Arc::new(
         APIBuilder::new()
+            .with_setting_engine(setting_engine)
             .with_media_engine(m)
             .with_interceptor_registry(registry)
             .build(),
@@ -101,9 +106,7 @@ async fn main() -> anyhow::Result<()> {
 
     rtp_thread(cli.rtp_addr, state.clone());
 
-    // todo: add JWT protection
-
-    let web_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("web");
+    let web_dir = std::env::current_dir()?.join("web");
 
     let app = Router::new()
         .route("/", get(serve_index))
@@ -116,7 +119,7 @@ async fn main() -> anyhow::Result<()> {
 
     let listener = tokio::net::TcpListener::bind(cli.servet_addr.to_owned()).await?;
 
-    info!("Server starting on http://{}", cli.servet_addr);
+    info!("Server starting on {}", cli.servet_addr);
 
     axum::serve(listener, app.into_make_service()).await?;
 
@@ -130,8 +133,7 @@ async fn connect_device_server(
 
     loop {
         let endpoint = Endpoint::from_shared(device_server.to_string())?;
-
-        //match DeviceClient::connect(device_server.to_string()).await {
+        
         match endpoint.connect().await {
             Ok(client) => {
                 info!("Connected to device server at {}", &device_server);

@@ -6,34 +6,46 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: ["http_server"]
+    command: ["/app/http_server"]
     environment:
       SERVER_ADDR: "0.0.0.0:8080"
       DEVICE_SERVER_ADDR: "http://device_server:5001"
       RTP_ADDR: "0.0.0.0:5004"
       RUST_LOG: "info"
     ports:
-      - "8080:8080"   # server address
+      - "8080:8080"     # server address
+      - "5001:5001"     # gRpc 
+      - "3478:3478"     # WebRTC
+      - "3478:3478/udp" # WebRTC
     restart: no #unless-stopped
     tty: true
+    networks:
+      - my_network
 
   device_server:
     container_name: device_server
     build:
       context: .
       dockerfile: Dockerfile
-    command: ["device_server"]
+    command: ["/bin/bash", "-c", "sleep 3 && device_server"]
     environment:
       GRPC_ADDR: "0.0.0.0:5001"
       STTY_PATH: "/dev/ttyUSB0"
       BAUD_RATE: "9600"
       VIDEO_DEV: "/dev/video0"
-      V8STREAM_URL: "0.0.0.0:5004"
+      V8STREAM_ADDR: "http_server:5004"
       RUST_LOG: "info"
-    ports:
-      - "5001:5001"
+    #ports:
+#      - "5001:5001"
+      #- "5004:5004/udp" # video stream
     devices:
       - "/dev/ttyUSB0:/dev/ttyUSB0"   # serial device
       - "/dev/video0:/dev/video0"     # camera input
     restart: no #unless-stopped
     tty: true
+    networks:
+      - my_network
+
+networks:
+  my_network:
+    driver: bridge

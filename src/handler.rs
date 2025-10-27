@@ -41,9 +41,8 @@ pub(crate) async fn websocket_handler(
     jar: CookieJar,
 ) -> impl IntoResponse {
     // Get user_id from Cookie
+    info!("Websocket handling connection");
     let user_id = jar.get("user_id").map(|c| c.value().to_string()).unwrap();
-    debug!("user_id: {}", user_id);
-    info!("user_id: {}", user_id);
     ws.on_upgrade(|socket| handle_websocket(socket, state, user_id))
 }
 

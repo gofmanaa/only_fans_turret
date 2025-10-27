@@ -31,8 +31,8 @@ struct Cli {
     #[clap(short, long, default_value = "/dev/video0", env = "VIDEO_DEV")]
     video_dev: PathBuf,
 
-    #[clap(long, default_value = "127.0.0.1:5004", env = "V8STREAM_URL")]
-    v8stream_url: SocketAddr,
+    #[clap(long, default_value = "127.0.0.1", env = "V8STREAM_ADDR")]
+    v8stream_addr: String,
 }
 
 #[tokio::main]
@@ -62,7 +62,7 @@ async fn main() -> anyhow::Result<()> {
     info!("GStream enabled!");
 
     #[cfg(feature = "gstream")]
-    let video_handle = video_stream_start(cli.video_dev, cli.v8stream_url);
+    let video_handle = video_stream_start(cli.video_dev, &cli.v8stream_addr);
 
     // Wait for Ctrl+C
     signal::ctrl_c().await?;
@@ -75,5 +75,3 @@ async fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
-
-

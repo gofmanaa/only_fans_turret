@@ -1,11 +1,13 @@
+
 #[cfg(feature = "gstream")]
 pub mod gstream {
     use anyhow::Context;
     use gst::prelude::*;
     use gstreamer as gst;
-    use std::net::SocketAddr;
+    use std::net::{SocketAddr, ToSocketAddrs};
     use std::path::PathBuf;
     use std::sync::Arc;
+    use std::thread;
     use std::thread::available_parallelism;
     use std::time::Duration;
 
@@ -16,12 +18,12 @@ pub mod gstream {
         pipeline: gst::Pipeline,
     }
 
-    // broadcast: gst-launch-1.0 v4l2src device=/dev/video0 ! videoconvert ! vp8enc deadline=1 threads=4 ! rtpvp8pay pt=96 ! udpsink host=127.0.0.1 port=5004
-    // read(test): gst-launch-1.0 udpsrc port=5004 caps="application/x-rtp, media=video, encoding-name=VP8, payload=96" ! rtpvp8depay ! vp8dec ! videoconvert ! autovideosink
+    /// broadcast: gst-launch-1.0 v4l2src device=/dev/video0 ! videoconvert ! vp8enc deadline=1 threads=4 ! rtpvp8pay pt=96 ! udpsink host=127.0.0.1 port=5004
+    /// read: gst-launch-1.0 udpsrc port=5004 caps="application/x-rtp, media=video, encoding-name=VP8, payload=96" ! rtpvp8depay ! vp8dec ! videoconvert ! autovideosink
 
     impl Vp8Streamer {
         /// Create a new streamer
-        fn new(device: &str, url: SocketAddr) -> anyhow::Result<Vp8Streamer> {
+        fn new(device: &str, host: SocketAddr) -> anyhow::Result<Vp8Streamer> {
             gst::init()
                 .context("Failed to initialize GStreamer")
                 .expect("Failed to initialize GStreamer");
@@ -54,8 +56,8 @@ pub mod gstream {
                 .expect("Failed to create rtpvp8pay");
 
             let sink = gst::ElementFactory::make("udpsink")
-                .property("host", url.ip().to_string())
-                .property("port", url.port() as i32)
+                .property("host", host.ip().to_string())
+                .property("port", host.port() as i32)
                 .build()
                 .context("Failed to create udpsink")
                 .expect("Failed to create udpsink");
@@ -92,14 +94,13 @@ pub mod gstream {
         }
     }
 
-    pub fn video_stream_start(
-        video_dev: PathBuf,
-        v8stream_url: SocketAddr,
-    ) -> std::thread::JoinHandle<()> {
+    pub fn video_stream_start(video_dev: PathBuf, v8stream_addr: &str) -> thread::JoinHandle<()> {
+        let stream_add = resolve_with_retry(v8stream_addr);
+
         info!(
             "Video device: {}, stream to {}",
             video_dev.display(),
-            v8stream_url
+            stream_add
         );
 
         // -------------------------
@@ -107,11 +108,11 @@ pub mod gstream {
         // -------------------------
 
         let streamer = Arc::new(
-            Vp8Streamer::new(video_dev.to_str().unwrap(), v8stream_url)
+            Vp8Streamer::new(video_dev.to_str().unwrap(), stream_add)
                 .expect("Failed to create video streamer"),
         );
 
-        std::thread::spawn(move || {
+        thread::spawn(move || {
             if let Err(e) = streamer.start() {
                 error!("Failed to start streamer: {e}");
                 return;
@@ -120,8 +121,28 @@ pub mod gstream {
             info!("Streamer started...");
 
             loop {
-                std::thread::sleep(Duration::from_secs(1));
+                thread::sleep(Duration::from_secs(1));
             }
         })
+    }
+    fn resolve_with_retry(addr: &str) -> SocketAddr {
+        let mut retries = 0;
+        loop {
+            match addr.to_socket_addrs() {
+                Ok(mut iter) => {
+                    if let Some(a) = iter.next() {
+                        return a;
+                    }
+                }
+                Err(e) => {
+                    retries += 1;
+                    error!(
+                        "Failed to connect to device {} (attempt {}): {}",
+                        addr, retries, e
+                    );
+                }
+            }
+            thread::sleep(Duration::from_secs(1));
+        }
     }
 }

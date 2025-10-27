@@ -17,7 +17,7 @@ pub struct UserSession {
     last_action_at: Option<Instant>,
 }
 
-const USER_SESSION_TIMEOUT: Duration = Duration::from_secs(30); // 30s timeout
+const USER_SESSION_TIMEOUT: Duration = Duration::from_secs(30);
 
 impl UserSession {
     pub fn new(user_id: impl Into<String>) -> Self {
@@ -48,7 +48,7 @@ impl UserSession {
     pub fn can_do_action(&self) -> bool {
         match self.last_action_at {
             Some(last) => last.elapsed() >= Duration::from_millis(300),
-            None => true, // no action yet → allowed
+            None => true, // no action yet -> allowed
         }
     }
 
