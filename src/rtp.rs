@@ -1,6 +1,6 @@
 use crate::app_state::AppState;
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::net::UdpSocket;
 use tracing::{error, info};
 use webrtc::rtp::packet::Packet;
@@ -10,6 +10,7 @@ pub fn rtp_thread(socket_addr: SocketAddr, app_state: Arc<AppState>) {
     // -------------------------
     // RTP packet receiver
     // -------------------------
+
     let rtp_state = app_state.clone();
     tokio::spawn(async move {
         // Bind to UDP port where GStreamer will send RTP
@@ -25,7 +26,7 @@ pub fn rtp_thread(socket_addr: SocketAddr, app_state: Arc<AppState>) {
             socket_addr.ip(),
             socket_addr.port()
         );
-        let mut buf = [0u8; 2048];
+        let mut buf = [0u8; 65536];
 
         loop {
             match socket.recv_from(&mut buf).await {

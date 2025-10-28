@@ -133,7 +133,7 @@ async fn connect_device_server(
 
     loop {
         let endpoint = Endpoint::from_shared(device_server.to_string())?;
-        
+
         match endpoint.connect().await {
             Ok(client) => {
                 info!("Connected to device server at {}", &device_server);

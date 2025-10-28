@@ -32,9 +32,6 @@ prost = "0.14.1"
 tonic-prost = "0.14.2"
 #tracing-loki = { version = "0.2.6",  default-features = false, features = ["compat-0-2-1"] }
 
-[target.arm-unknown-linux-gnueabihf]
-dockerfile = "Dockerfile.cross"
-
 [features]
 default = []
 gstream = ["gstreamer"]

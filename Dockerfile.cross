@@ -1,32 +1,36 @@
-# Dockerfile.cross
-#FROM ghcr.io/cross-rs/arm-unknown-linux-gnueabihf:latest AS cross-build
-
-#FROM ghcr.io/cross-rs/armv7-unknown-linux-gnueabihf:latest
-
-#RUN dpkg --add-architecture armhf \
-#    && apt-get update \
-#    && apt-get install -y \
-#       pkg-config \
-#       gcc-arm-linux-gnueabihf \
-#       libc6:armhf \
-#       libglib2.0-dev:armhf \
-#       libgstreamer1.0-dev:armhf \
-#       libgstreamer-plugins-base1.0-dev:armhf
-# Dockerfile.cross
-FROM ghcr.io/cross-rs/armv7-unknown-linux-gnueabihf:latest
-
-# apt-get update && apt-get install -y libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev pkg-config glib-2.0 libgirepository1.0-dev libc6 gcc-arm-linux-gnueabihf libspice-client-glib-2.0-dev
+FROM ghcr.io/cross-rs/arm-unknown-linux-gnueabi:latest
 
 RUN dpkg --add-architecture armhf \
     && apt-get update \
     && apt-get install -y \
-       gcc-arm-linux-gnueabihf \
-       g++-arm-linux-gnueabihf \
+       gcc-arm-linux-gnueabi \
+       g++-arm-linux-gnueabi \
+       libc6-dev-armhf-cross \
        libglib2.0-dev \
        libgstreamer1.0-dev \
        libgstreamer-plugins-base1.0-dev \
+       gstreamer1.0-plugins-base \
+       gstreamer1.0-plugins-good \
+       gstreamer1.0-plugins-bad \
+       gstreamer1.0-plugins-ugly \
+       gstreamer1.0-libav \
+       gstreamer1.0-tools \
+       gstreamer1.0-x \
+       gstreamer1.0-alsa \
+       gstreamer1.0-pulseaudio \
        pkg-config \
-       libc6 \
-       gcc-arm-linux-gnueabihf \
-       libc6-dev-armhf-cross \
-       libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev pkg-config glib-2.0 libgirepository1.0-dev libc6 gcc-arm-linux-gnueabihf libspice-client-glib-2.0-dev
+       build-essential \
+       protobuf-compiler \
+       wget unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install protoc
+RUN PROTOC_VER=23.4 && \
+    wget https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/protoc-${PROTOC_VER}-linux-x86_64.zip && \
+    unzip protoc-${PROTOC_VER}-linux-x86_64.zip -d /usr/local && \
+    rm protoc-${PROTOC_VER}-linux-x86_64.zip && \
+    export PATH=/usr/local/bin:$PATH
+
+WORKDIR /app
+COPY . .
+

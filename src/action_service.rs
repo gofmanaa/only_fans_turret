@@ -13,7 +13,6 @@ use tracing::{info, warn};
 pub struct Turret;
 
 impl Turret {
-
     /// Actions are converted into serial port commands
     fn action_to_command(action: Action) -> String {
         match action {
@@ -39,7 +38,7 @@ impl ActionService<Turret> {
         info!("Open serial port at {}", path.display());
 
         let port_stream = connect_devic_retry(path, baud_rate).await?;
-        
+
         // Split serial stream into reader and writer
         let (reader, writer) = tokio::io::split(port_stream);
         let writer = Arc::new(Mutex::new(writer));

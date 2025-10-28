@@ -1,5 +1,10 @@
 # OnlyFansTurret ;)
 
+
+<div style="text-align: center;">
+  <img src="web/mascot_200.png" alt="OnlyFansTurret" width="200">
+</div>
+
 ## Description
 
 **OnlyFansTurret** is an interactive web service that allows users to remotely control a toy turret and watch its live video stream.
@@ -22,22 +27,11 @@ Access is managed through a **queue system**: the next user in line gains contro
 
 ## Build and Run
 
-1.  **Build the project:**
+1.  **Build the project and run the server:**
 
     ```bash
-    cargo build --release
+    docker compose up
     ```
-
-2.  **Run the server:**
-
-    ```bash
-    ./target/release/only_fans_turret
-    ```
-
-3.  **Access the web interface:**
-
-    Open your web browser and navigate to the appropriate address (e.g., `http://localhost`).
-
 ## Contributing
 
 Contributions are welcome! Please submit pull requests with detailed descriptions of your changes.
