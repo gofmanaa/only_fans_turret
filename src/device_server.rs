@@ -1,12 +1,16 @@
 mod action_service;
 mod actions;
 mod devices;
+
+#[cfg(feature = "gstream")]
 mod gst_v8_stream;
+#[cfg(feature = "gstream")]
+use crate::gst_v8_stream::gstream::video_stream_start;
+#[cfg(feature = "gstream")]
+use tracing::error;
 
 use crate::action_service::ActionService;
 use crate::devices::grpc_server::GrpcDeviceServer;
-#[cfg(feature = "gstream")]
-use crate::gst_v8_stream::gstream::video_stream_start;
 use clap::Parser;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -59,19 +63,30 @@ async fn main() -> anyhow::Result<()> {
     });
 
     #[cfg(feature = "gstream")]
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+
+    #[cfg(feature = "gstream")]
     info!("GStream enabled!");
 
     #[cfg(feature = "gstream")]
-    let video_handle = video_stream_start(cli.video_dev, &cli.v8stream_addr);
+    let video_handle = video_stream_start(cli.video_dev, &cli.v8stream_addr, shutdown_rx);
 
     // Wait for Ctrl+C
     signal::ctrl_c().await?;
     info!("Ctrl+C received, stopping...");
 
     #[cfg(feature = "gstream")]
-    video_handle.thread().unpark();
+    if shutdown_tx.send(()).is_ok() {
+        info!("Shutdown signal sent to video thread");
+    }
+
+    #[cfg(feature = "gstream")]
+    if let Err(e) = video_handle.join() {
+        error!("Video thread join error: {:?}", e);
+    }
 
     grpc_handle.abort();
+    info!("Shutdown complete.");
 
     Ok(())
 }

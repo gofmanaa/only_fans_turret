@@ -20,8 +20,8 @@ WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY proto ./proto
 
-RUN mkdir src && echo "fn main() {}" > src/main.rs
-RUN cargo build --release || true
+RUN mkdir src && echo "fn main() {}" > src/main.rs && echo "fn main() {}" > src/device_server.rs
+RUN cargo build --release
 
 COPY . .
 

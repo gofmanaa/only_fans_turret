@@ -1,7 +1,9 @@
 use crate::app_state::AppState;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::net::UdpSocket;
+use tokio::time::sleep;
 use tracing::{error, info};
 use webrtc::rtp::packet::Packet;
 use webrtc::util::Unmarshal;
@@ -44,7 +46,8 @@ pub fn rtp_thread(socket_addr: SocketAddr, app_state: Arc<AppState>) {
                 }
                 Err(e) => {
                     error!("UDP recv error: {}", e);
-                    break;
+                    sleep(Duration::from_millis(100)).await;
+                    continue;
                 }
             }
         }

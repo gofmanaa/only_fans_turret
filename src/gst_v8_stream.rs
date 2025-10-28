@@ -1,4 +1,3 @@
-#[cfg(feature = "gstream")]
 pub mod gstream {
     use anyhow::Context;
     use gst::prelude::*;
@@ -9,7 +8,7 @@ pub mod gstream {
     use std::thread;
     use std::thread::available_parallelism;
     use std::time::Duration;
-
+    use tokio::sync::oneshot::Receiver;
     use tracing::{error, info};
 
     /// Struct representing the VP8 UDP streamer
@@ -132,7 +131,11 @@ pub mod gstream {
         }
     }
 
-    pub fn video_stream_start(video_dev: PathBuf, v8stream_addr: &str) -> thread::JoinHandle<()> {
+    pub fn video_stream_start(
+        video_dev: PathBuf,
+        v8stream_addr: &str,
+        mut shutdown_rx: Receiver<()>,
+    ) -> thread::JoinHandle<()> {
         let stream_add = resolve_with_retry(v8stream_addr);
 
         info!(
@@ -158,8 +161,20 @@ pub mod gstream {
 
             info!("Streamer started...");
 
-            loop {
-                thread::sleep(Duration::from_secs(1));
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async move {
+                tokio::select! {
+                    _ = &mut shutdown_rx => {
+                        info!("Shutdown signal received in video stream thread.");
+                    }
+                    else => {}
+                }
+            });
+
+            if let Err(e) = streamer.stop() {
+                error!("Failed to stop streamer: {e}");
+            } else {
+                info!("Streamer stopped gracefully.");
             }
         })
     }

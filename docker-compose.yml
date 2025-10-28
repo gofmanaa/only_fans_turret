@@ -27,7 +27,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: ["/bin/bash", "-c", "sleep 3 && device_server"]
+    command: ["device_server"]
     environment:
       GRPC_ADDR: "0.0.0.0:5001"
       STTY_PATH: "/dev/ttyUSB0"

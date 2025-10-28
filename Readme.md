@@ -20,6 +20,12 @@ Access is managed through a **queue system**: the next user in line gains contro
 *   Remote control: Controlling devices remotely.
 *   Web interface: A user-friendly web interface for managing devices and viewing streams.
 
+## How this works:
+The service consists of three parts:
+- **Device server** – manages the device, accepts commands via [gRPC](https://grpc.io/), and streams video via [GStreamer](https://gstreamer.freedesktop.org/).
+- **Web server** – renders the web page and video, using WebSocket (WS) for server communication.
+- **Device** - communicates and receives commands via the serial port.
+
 ## Prerequisites
 
 *   Rust toolchain
@@ -32,6 +38,11 @@ Access is managed through a **queue system**: the next user in line gains contro
     ```bash
     docker compose up
     ```
+    
+## Demo video
+[🎬 Watch demo video](web/demo.mp4)
+
+
 ## Contributing
 
 Contributions are welcome! Please submit pull requests with detailed descriptions of your changes.

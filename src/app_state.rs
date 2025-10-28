@@ -111,7 +111,7 @@ impl AccessQueue {
     }
 }
 
-// ===== Application State =====
+// Application State
 type UserWSSender = Arc<RwLock<HashMap<String, mpsc::Sender<Message>>>>;
 
 pub struct AppState {
@@ -121,19 +121,6 @@ pub struct AppState {
     pub rtp_broadcast: broadcast::Sender<Packet>,
     pub(crate) api: Arc<webrtc::api::API>,
     pub device_client: Arc<Mutex<DeviceClient<tonic::transport::Channel>>>,
-}
-
-impl Clone for AppState {
-    fn clone(&self) -> Self {
-        Self {
-            users: Arc::clone(&self.users),
-            queue: Arc::clone(&self.queue),
-            user_ws_senders: Arc::clone(&self.user_ws_senders),
-            rtp_broadcast: self.rtp_broadcast.clone(),
-            api: Arc::clone(&self.api),
-            device_client: Arc::clone(&self.device_client),
-        }
-    }
 }
 
 impl AppState {

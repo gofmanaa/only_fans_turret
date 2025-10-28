@@ -1,4 +1,5 @@
 use crate::actions::Action;
+use anyhow::anyhow;
 use std::marker::PhantomData;
 use std::{path::Path, sync::Arc, time::Duration};
 use tokio::time::sleep;
@@ -12,12 +13,14 @@ use tracing::{info, warn};
 
 pub struct Turret;
 
+const ACTION_COOL_DOWN: Duration = Duration::from_millis(300);
+
 impl Turret {
     /// Actions are converted into serial port commands
     fn action_to_command(action: Action) -> String {
         match action {
-            Action::Right => "H1".to_string(),
-            Action::Left => "H-1".to_string(),
+            Action::Right => "H-1".to_string(),
+            Action::Left => "H1".to_string(),
             Action::Up => "V-1".to_string(),
             Action::Down => "V1".to_string(),
             Action::Fire => "FIRE".to_string(),
@@ -75,10 +78,10 @@ impl ActionService<Turret> {
         let now = Instant::now();
 
         if let Some(last_time) = *last
-            && now.duration_since(last_time) < Duration::from_millis(300)
+            && now.duration_since(last_time) < ACTION_COOL_DOWN
         {
             warn!("Action {:?} rejected: cooldown active", action);
-            return Ok(());
+            return Err(anyhow!("Action {:?} rejected due to cooldown", action));
         }
 
         *last = Some(now);
