@@ -21,6 +21,10 @@ jobs:
         id: cargo_version
         run: |
           VERSION=$(grep '^version' Cargo.toml | head -n1 | sed -E 's/version\s*=\s*"(.*)"/\1/')
+          if [ -z "$VERSION" ]; then
+            echo "❌ Cargo version not found"
+            exit 1
+          fi
           echo "cargo_version=$VERSION" >> $GITHUB_OUTPUT
 
 
