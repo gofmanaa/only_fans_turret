@@ -6,12 +6,14 @@ mod handler;
 mod message;
 mod rtp;
 mod sdp_handler;
+mod turn;
+mod config;
 
 use crate::app_state::AppState;
 use crate::devices::pb::device_client::DeviceClient;
 use crate::handler::{serve_index, websocket_handler};
 use crate::rtp::rtp_thread;
-use crate::sdp_handler::handle_sdp_offer;
+use crate::sdp_handler::{get_turn_credentials, handle_sdp_offer};
 use axum::Router;
 use axum::routing::{get, post};
 use clap::Parser;
@@ -34,6 +36,7 @@ use webrtc::api::media_engine::MediaEngine;
 use webrtc::api::setting_engine::SettingEngine;
 use webrtc::ice::network_type::NetworkType;
 use webrtc::interceptor::registry::Registry;
+use crate::config::WebConfig;
 
 #[derive(Parser)]
 struct Cli {
@@ -70,6 +73,7 @@ async fn main() -> anyhow::Result<()> {
     // tokio::spawn(task);
 
     let cli = Cli::parse();
+    let web_config = WebConfig::new()?;
 
     // -------------------------
     // WebRTC API setup
@@ -93,7 +97,7 @@ async fn main() -> anyhow::Result<()> {
 
     let device_gpc_client = connect_device_server(&cli.device_server).await?;
 
-    let state = Arc::new(AppState::new(api, device_gpc_client));
+    let state = Arc::new(AppState::new(api, device_gpc_client, web_config));
 
     let state_clone = state.clone();
     tokio::spawn(async move {
@@ -112,6 +116,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/", get(serve_index))
         .route("/ws", get(websocket_handler))
         .route("/sdp", post(handle_sdp_offer))
+        .route("/turn", post(get_turn_credentials))
         .nest_service("/static", ServeDir::new(web_dir))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())

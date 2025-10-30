@@ -47,7 +47,7 @@ pub(crate) async fn websocket_handler(
 }
 
 async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: String) {
-    let user_session = UserSession::new(user_id.clone());
+    let user_session = UserSession::new(user_id.clone(), state.web_config.controller_ttl as u64);
     info!("New WebSocket connection: {}", user_id);
 
     state.add_user(user_session).await;
@@ -78,7 +78,7 @@ async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: Stri
 
     // Spawn task to handle incoming messages from client
     let state_clone = state.clone();
-    let user_id_clone_for_incoming = user_id.clone(); // Clone user_id for incoming task
+    let user_id_clone = user_id.clone(); // Clone user_id for incoming task
     let incoming_task = tokio::spawn(async move {
         while let Some(msg) = ws_receiver.next().await {
             match msg {
@@ -87,18 +87,18 @@ async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: Stri
                     if let Ok(client_msg) = serde_json::from_str::<ClientMessage>(&text) {
                         handle_client_message(
                             client_msg,
-                            &user_id_clone_for_incoming,
+                            &user_id_clone,
                             &state_clone,
                         )
                         .await;
                     }
                 }
                 Ok(Message::Close(_)) => {
-                    info!("WebSocket closed by client: {}", user_id_clone_for_incoming);
+                    info!("WebSocket closed by client: {}", user_id_clone);
                     break;
                 }
                 Err(e) => {
-                    warn!("WebSocket error for {}: {}", user_id_clone_for_incoming, e);
+                    warn!("WebSocket error for {}: {}", user_id_clone, e);
                     break;
                 }
                 _ => {}

@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, RwLock, broadcast, mpsc};
 use tracing::{info, warn};
 use webrtc::rtp::packet::Packet;
+use crate::config::WebConfig;
 
 #[derive(Debug, Clone)]
 pub struct UserSession {
@@ -15,17 +16,19 @@ pub struct UserSession {
     pub has_control: bool,
     pub control_granted_at: Option<Instant>,
     last_action_at: Option<Instant>,
+    session_ttl: Duration,
 }
 
-const USER_SESSION_TIMEOUT: Duration = Duration::from_secs(30);
+const ACTION_COOLDOWN: Duration = Duration::from_millis(300);
 
 impl UserSession {
-    pub fn new(user_id: impl Into<String>) -> Self {
+    pub fn new(user_id: impl Into<String>, session_ttl_sec: u64) -> Self {
         Self {
             id: user_id.into(),
             has_control: false,
             control_granted_at: None,
             last_action_at: None,
+            session_ttl: Duration::from_secs(session_ttl_sec),
         }
     }
 
@@ -41,13 +44,13 @@ impl UserSession {
 
     pub fn is_control_expired(&self) -> bool {
         self.control_granted_at
-            .map(|t| t.elapsed() > USER_SESSION_TIMEOUT)
+            .map(|t| t.elapsed() > self.session_ttl)
             .unwrap_or(false)
     }
 
     pub fn can_do_action(&self) -> bool {
         match self.last_action_at {
-            Some(last) => last.elapsed() >= Duration::from_millis(300),
+            Some(last) => last.elapsed() >= ACTION_COOLDOWN,
             None => true, // no action yet -> allowed
         }
     }
@@ -121,12 +124,15 @@ pub struct AppState {
     pub rtp_broadcast: broadcast::Sender<Packet>,
     pub(crate) api: Arc<webrtc::api::API>,
     pub device_client: Arc<Mutex<DeviceClient<tonic::transport::Channel>>>,
+    
+    pub web_config: WebConfig,
 }
 
 impl AppState {
     pub fn new(
         api: Arc<webrtc::api::API>,
         device_client: Arc<Mutex<DeviceClient<tonic::transport::Channel>>>,
+        web_config: WebConfig,
     ) -> Self {
         let (rtp_broadcast, _) = broadcast::channel(1000);
         Self {
@@ -136,6 +142,7 @@ impl AppState {
             rtp_broadcast,
             api,
             device_client,
+            web_config,
         }
     }
 

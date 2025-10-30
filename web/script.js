@@ -65,59 +65,84 @@ class WSController {
 
     async startWebRTC() {
         try {
+            console.log("Getting TURN credentials...");
+
+            // Get TURN credentials first
+            const turnResp = await fetch("/turn", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ client_id: this.getUserId() }),
+            });
+            const turnData = await turnResp.json();
+
+            console.log("Creating peer connection with TURN...");
+
+            // Close old connection if exists
+            if (this.pc) this.pc.close();
+
+            // Create peer connection with TURN from the start
             this.pc = new RTCPeerConnection({
-                iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }]
+                iceServers: [{
+                    urls: turnData.turn.urls,
+                    username: turnData.turn.username,
+                    credential: turnData.turn.credential,
+                }],
             });
 
             this.pc.onconnectionstatechange = () => {
-                if (this.pc.connectionState === 'connected') {
-                    this.updateStatus('Streaming', 'active');
-                } else if (['disconnected', 'failed'].includes(this.pc.connectionState)) {
-                    this.updateStatus('Disconnected', 'disconnected');
+                switch (this.pc.connectionState) {
+                    case "connected":
+                        this.updateStatus("Streaming", "active");
+                        break;
+                    case "disconnected":
+                    case "failed":
+                    case "closed":
+                        this.updateStatus("Disconnected", "disconnected");
+                        break;
                 }
             };
 
-            this.pc.ontrack = e => { this.videoStream.srcObject = e.streams[0]; };
+            this.pc.ontrack = (event) => {
+                this.videoStream.srcObject = event.streams[0];
+            };
 
             this.pc.addTransceiver("video", { direction: "recvonly" });
+
             const offer = await this.pc.createOffer();
             await this.pc.setLocalDescription(offer);
 
             await new Promise(resolve => {
-                if (this.pc.iceGatheringState === 'complete') return resolve();
+                if (this.pc.iceGatheringState === "complete") return resolve();
                 this.pc.onicegatheringstatechange = () => {
-                    if (this.pc.iceGatheringState === 'complete') resolve();
+                    if (this.pc.iceGatheringState === "complete") resolve();
                 };
             });
 
-            console.log("send to server client_id:", this.getUserId())
-
-            const resp = await fetch('/sdp', {
-                method: 'POST',
+            const resp = await fetch("/sdp", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     sdp: this.pc.localDescription.sdp,
                     type: this.pc.localDescription.type,
                     client_id: this.getUserId(),
                 }),
-                headers: { 'Content-Type': 'application/json' }
             });
 
-            const text = await resp.text(); // always read raw
-            try {
-                const answer = JSON.parse(text);
-                await this.pc.setRemoteDescription(answer);
-            } catch (err) {
-                console.error("WebRTC error: server did not return valid JSON", text);
-                throw err;
-            }
+            const json = await resp.json();
+            if (!resp.ok) throw new Error(json.error || "SDP error");
+
+            await this.pc.setRemoteDescription({
+                type: json.type,
+                sdp: json.sdp,
+            });
 
             this.videoControlBtns.start.disabled = true;
             this.videoControlBtns.stop.disabled = false;
-
-            // Start stats polling
             this.startStatsPolling();
-        } catch (_error) {
-            this.log(`WebRTC connect error`, 'error');
+
+            console.log("WebRTC connected!");
+        } catch (error) {
+            console.error("WebRTC failed:", error);
             this.updateStatus('Connection Failed', 'disconnected');
         }
     }
@@ -128,6 +153,7 @@ class WSController {
         this.updateStatus('Stopped', 'disconnected');
         this.videoControlBtns.start.disabled = false;
         this.videoControlBtns.stop.disabled = true;
+        this.bytesReceivedEl.textContent = 'N/A';
     }
 
     startStatsPolling() {
@@ -139,7 +165,6 @@ class WSController {
             stats.forEach(report => {
                 if (report.type === "inbound-rtp" && report.kind === "video") {
                     const bytes = report.bytesReceived;
-                    //this.bytesReceivedEl.textContent = bytes.toLocaleString();
                     const delta = bytes - lastBytes;
                     if (delta > 0) {
                         const bitrate = (delta * 8 / 1000).toFixed(1); // kbps
@@ -236,18 +261,18 @@ class WSController {
     }
 
     getUserId() {
-        console.log("getUserId: ", this.user_id);
+        //console.log("getUserId: ", this.user_id);
         return this.user_id;
     }
     setUserId(id) {
         this.user_id = id;
         localStorage.setItem("user_id", id);
-        console.log("setUserId: ", id);
+        //console.log("setUserId: ", id);
     }
 
     handleServerMessage(msg) {
 
-        console.log("server message: ", msg);
+        //console.log("server message: ", msg);
 
         if (msg.type !== 'ResponseUserId') {
             if (msg.user_id && msg.user_id !== this.getUserId()) {
