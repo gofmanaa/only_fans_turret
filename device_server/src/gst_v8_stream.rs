@@ -1,18 +1,23 @@
+use std::net::{SocketAddr, ToSocketAddrs};
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
+use tokio::sync::watch;
+use tracing::{error, info};
+use device::action_service::VideoStreamerHandle;
+use crate::gst_v8_stream::gstream::Vp8Streamer;
+
 pub mod gstream {
     use anyhow::Context;
     use gst::prelude::*;
     use gstreamer as gst;
-    use std::net::{SocketAddr, ToSocketAddrs};
-    use std::path::PathBuf;
-    use std::sync::Arc;
-    use std::thread;
+    use std::net::{SocketAddr};
     use std::thread::available_parallelism;
-    use std::time::Duration;
-    use tokio::sync::oneshot::Receiver;
-    use tracing::{error, info};
+    use tracing::{info};
 
     /// Struct representing the VP8 UDP streamer
-    struct Vp8Streamer {
+    pub(crate) struct Vp8Streamer {
         pipeline: gst::Pipeline,
     }
 
@@ -27,7 +32,7 @@ pub mod gstream {
 
     impl Vp8Streamer {
         /// Create a new streamer
-        fn new(device: &str, host: SocketAddr) -> anyhow::Result<Vp8Streamer> {
+        pub(crate) fn new(device: &str, host: SocketAddr) -> anyhow::Result<Vp8Streamer> {
             gst::init()
                 .context("Failed to initialize GStreamer")
                 .expect("Failed to initialize GStreamer");
@@ -110,7 +115,7 @@ pub mod gstream {
         }
 
         /// Start streaming
-        fn start(&self) -> anyhow::Result<()> {
+        pub fn start(&self) -> anyhow::Result<()> {
             self.pipeline.set_state(gst::State::Playing)?;
             info!("Vp8Streamer start.");
             Ok(())
@@ -118,7 +123,7 @@ pub mod gstream {
 
         /// Stop streaming
         #[allow(dead_code)]
-        fn stop(&self) -> anyhow::Result<()> {
+        pub fn stop(&self) -> anyhow::Result<()> {
             self.pipeline.set_state(gst::State::Null)?;
             info!("Vp8Streamer stop.");
             Ok(())
@@ -130,72 +135,76 @@ pub mod gstream {
             self.pipeline.bus().unwrap()
         }
     }
+}
 
-    pub fn video_stream_start(
-        video_dev: PathBuf,
-        v8stream_addr: &str,
-        mut shutdown_rx: Receiver<()>,
-    ) -> thread::JoinHandle<()> {
-        let stream_add = resolve_with_retry(v8stream_addr);
 
-        info!(
-            "Video device: {}, stream to {}",
-            video_dev.display(),
-            stream_add
-        );
+pub fn video_stream_start(video_dev: PathBuf, v8stream_addr: &str) -> VideoStreamerHandle {
+    let (stop_tx, stop_rx) = watch::channel(false);
+    let stream_addr = resolve_with_retry(v8stream_addr);
 
-        // -------------------------
-        // Vp8VideoStream
-        // -------------------------
+    info!("Video device: {}, stream to {}", video_dev.display(), stream_addr);
 
-        let streamer = Arc::new(
-            Vp8Streamer::new(video_dev.to_str().unwrap(), stream_add)
-                .expect("Failed to create video streamer"),
-        );
+    let streamer = Arc::new(
+        Vp8Streamer::new(video_dev.to_str().unwrap(), stream_addr)
+            .expect("Failed to create VP8 video streamer"),
+    );
+
+    let handle = {
+        let streamer = Arc::clone(&streamer);
+        let stop_rx = stop_rx.clone();
 
         thread::spawn(move || {
             if let Err(e) = streamer.start() {
-                error!("Failed to start streamer: {e}");
+                error!("Failed to start streamer: {}", e);
                 return;
             }
 
-            info!("Streamer started...");
+            info!("Streamer started and running...");
 
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async move {
-                tokio::select! {
-                    _ = &mut shutdown_rx => {
-                        info!("Shutdown signal received in video stream thread.");
+            loop {
+                match stop_rx.has_changed() {
+                    Ok(true) => {
+                        info!("Stop signal received in video thread.");
+                        break;
                     }
-                    else => {}
+                    Ok(false) => {
+                        thread::sleep(Duration::from_millis(100));
+                    }
+                    Err(_) => {
+                        info!("Stop channel closed unexpectedly.");
+                        break;
+                    }
                 }
-            });
+            }
 
             if let Err(e) = streamer.stop() {
-                error!("Failed to stop streamer: {e}");
+                error!("Failed to stop streamer: {}", e);
             } else {
                 info!("Streamer stopped gracefully.");
             }
         })
-    }
-    fn resolve_with_retry(addr: &str) -> SocketAddr {
-        let mut retries = 0;
-        loop {
-            match addr.to_socket_addrs() {
-                Ok(mut iter) => {
-                    if let Some(a) = iter.next() {
-                        return a;
-                    }
+    };
+
+    VideoStreamerHandle { stop_tx, handle: Some(handle) }
+}
+
+fn resolve_with_retry(addr: &str) -> SocketAddr {
+    let mut retries = 0;
+    loop {
+        match addr.to_socket_addrs() {
+            Ok(mut iter) => {
+                if let Some(a) = iter.next() {
+                    return a;
                 }
-                Err(e) => {
-                    retries += 1;
-                    error!(
+            }
+            Err(e) => {
+                retries += 1;
+                error!(
                         "Failed to connect to device {} (attempt {}): {}",
                         addr, retries, e
                     );
-                }
             }
-            thread::sleep(Duration::from_secs(1));
         }
+        thread::sleep(Duration::from_secs(1));
     }
 }

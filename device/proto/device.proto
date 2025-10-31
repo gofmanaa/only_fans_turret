@@ -4,7 +4,17 @@ package devices;
 
 service Device {
   rpc DoAction (CommandRequest) returns (CommandResponse);
+  rpc StopStream(StopStreamRequest) returns (StopStreamResponse);
+  rpc StartStream(StartStreamRequest) returns (StartStreamResponse);
 }
+
+message StopStreamRequest {}
+
+message StopStreamResponse{}
+
+message StartStreamRequest{}
+
+message StartStreamResponse{}
 
 message CommandRequest {
   Action action = 1;

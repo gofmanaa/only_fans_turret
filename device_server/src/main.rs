@@ -1,10 +1,7 @@
 #[cfg(feature = "gstream")]
 mod gst_v8_stream;
 #[cfg(feature = "gstream")]
-use crate::gst_v8_stream::gstream::video_stream_start;
-#[cfg(feature = "gstream")]
-use tracing::error;
-
+use device::action_service::VideoStreamerHandle;
 use device::action_service::ActionService;
 use device::grpc_server::GrpcDeviceServer;
 use clap::Parser;
@@ -34,7 +31,6 @@ struct Cli {
     #[clap(long, default_value = "127.0.0.1", env = "V8STREAM_ADDR")]
     v8stream_addr: String,
 }
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::registry()
@@ -44,45 +40,69 @@ async fn main() -> anyhow::Result<()> {
 
     let cli = Cli::parse();
 
-    let action_service = ActionService::new(cli.stty_path.as_path(), cli.baud_rate).await?;
-
-    let device_server = GrpcDeviceServer::new(action_service);
-
-    // Spawn gRPC server
-    let grpc_handle = tokio::spawn(async move {
-        info!("gRPC server listening on {}", cli.grpc_addr);
-        Server::builder()
-            .add_service(device_server.into_service())
-            .serve(cli.grpc_addr)
-            .await
-            .expect("Grpc server failed to start");
-    });
-
+    // Optional: initialize video streamer if gstream feature is enabled
     #[cfg(feature = "gstream")]
-    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+    {
+        info!("GStream feature enabled!");
 
-    #[cfg(feature = "gstream")]
-    info!("GStream enabled!");
+        let stream_factory = {
+            let video_dev = cli.video_dev.clone();
+            let v8_addr = cli.v8stream_addr.clone();
 
-    #[cfg(feature = "gstream")]
-    let video_handle = video_stream_start(cli.video_dev, &cli.v8stream_addr, shutdown_rx);
+            Box::new(move || {
+                gst_v8_stream::video_stream_start(video_dev.clone(), &v8_addr)
+            }) as Box<dyn Fn() -> VideoStreamerHandle + Send + Sync>
+        };
 
-    // Wait for Ctrl+C
-    signal::ctrl_c().await?;
-    info!("Ctrl+C received, stopping...");
+        let action_service =
+            ActionService::new(cli.stty_path.as_path(), cli.baud_rate, Some(stream_factory)).await?;
 
-    #[cfg(feature = "gstream")]
-    if shutdown_tx.send(()).is_ok() {
-        info!("Shutdown signal sent to video thread");
+        let device_server = GrpcDeviceServer::new(action_service);
+
+        let grpc_addr = cli.grpc_addr;
+
+        let grpc_handle = tokio::spawn(async move {
+            info!("gRPC server listening on {}", grpc_addr);
+            Server::builder()
+                .add_service(device_server.into_service())
+                .serve(grpc_addr)
+                .await
+                .expect("Grpc server failed to start");
+        });
+
+        signal::ctrl_c().await?;
+        info!("Ctrl+C received, stopping...");
+
+        grpc_handle.abort();
+        info!("Shutdown complete.");
     }
 
-    #[cfg(feature = "gstream")]
-    if let Err(e) = video_handle.join() {
-        error!("Video thread join error: {:?}", e);
-    }
+    #[cfg(not(feature = "gstream"))]
+    {
+        info!("GStream feature disabled, running in serial-only mode");
 
-    grpc_handle.abort();
-    info!("Shutdown complete.");
+        let action_service =
+            ActionService::new(cli.stty_path.as_path(), cli.baud_rate, None).await?;
+
+        let device_server = GrpcDeviceServer::new(action_service);
+
+        let grpc_addr = cli.grpc_addr;
+
+        let grpc_handle = tokio::spawn(async move {
+            info!("gRPC server listening on {}", grpc_addr);
+            Server::builder()
+                .add_service(device_server.into_service())
+                .serve(grpc_addr)
+                .await
+                .expect("Grpc server failed to start");
+        });
+
+        signal::ctrl_c().await?;
+        info!("Ctrl+C received, stopping...");
+
+        grpc_handle.abort();
+        info!("Shutdown complete.");
+    }
 
     Ok(())
 }

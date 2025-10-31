@@ -134,7 +134,7 @@ impl AppState {
         device_client: Arc<Mutex<DeviceClient<tonic::transport::Channel>>>,
         web_config: WebConfig,
     ) -> Self {
-        let (rtp_broadcast, _) = broadcast::channel(1000);
+        let (rtp_broadcast, _) = broadcast::channel(30);
         Self {
             users: Arc::new(RwLock::new(HashMap::new())),
             queue: Arc::new(Mutex::new(AccessQueue::new())),
@@ -179,6 +179,9 @@ impl AppState {
                 warn!("No WebSocket sender found for {}", user_id);
             }
         }
+    }
+    pub async fn users_count(&self) -> usize {
+        self.users.read().await.len()
     }
 
     pub async fn process_queue(&self) {
@@ -247,6 +250,17 @@ impl AppState {
             )
             .await;
         }
+    }
+
+    pub fn start_background_tasks(self: &Arc<Self>) {
+        let state = Arc::clone(self);
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(1));
+            loop {
+                interval.tick().await;
+                state.process_queue().await;
+            }
+        });
     }
 }
 

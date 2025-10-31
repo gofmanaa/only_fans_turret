@@ -97,14 +97,7 @@ async fn main() -> anyhow::Result<()> {
 
     let state = Arc::new(AppState::new(api, device_gpc_client, web_config));
 
-    let state_clone = state.clone();
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_secs(1));
-        loop {
-            interval.tick().await;
-            state_clone.process_queue().await;
-        }
-    });
+    state.start_background_tasks();
 
     rtp_thread(cli.rtp_addr, state.clone());
 

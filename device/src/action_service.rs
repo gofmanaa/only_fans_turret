@@ -1,7 +1,7 @@
 use crate::actions::Action;
 use anyhow::anyhow;
 use std::marker::PhantomData;
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{path::Path, sync::Arc, thread, time::Duration};
 use tokio::time::sleep;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
@@ -9,7 +9,8 @@ use tokio::{
     time::Instant,
 };
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
-use tracing::{info, warn};
+use tracing::{error, info, warn};
+use tokio::sync::watch;
 
 pub struct Turret;
 
@@ -32,12 +33,14 @@ pub struct ActionService<D> {
     writer: Arc<Mutex<tokio::io::WriteHalf<SerialStream>>>,
     last_action: Arc<Mutex<Option<Instant>>>,
     device: PhantomData<D>,
+    stream_handler: Arc<Mutex<Option<VideoStreamerHandle>>>,
+    stream_factory: Option<Box<dyn Fn() -> VideoStreamerHandle + Send + Sync>>
 }
 
 impl ActionService<Turret> {
     /// Create a new ActionService and start reading Arduino output
     #[allow(dead_code)]
-    pub async fn new(path: &Path, baud_rate: u32) -> anyhow::Result<Self> {
+    pub async fn new(path: &Path, baud_rate: u32, stream_factory: Option<Box<dyn Fn() -> VideoStreamerHandle + Send + Sync>>) -> anyhow::Result<Self> {
         info!("Open serial port at {}", path.display());
 
         let port_stream = connect_devic_retry(path, baud_rate).await?;
@@ -69,6 +72,8 @@ impl ActionService<Turret> {
             writer,
             last_action: Arc::new(Mutex::new(None)),
             device: PhantomData,
+            stream_handler: Arc::new(Mutex::new(None)),
+            stream_factory,
         })
     }
 
@@ -101,6 +106,38 @@ impl ActionService<Turret> {
     fn action_to_command(action: Action) -> String {
         Turret::action_to_command(action)
     }
+
+    pub async fn start_stream(&self) -> anyhow::Result<()> {
+        let mut handler = self.stream_handler.lock().await;
+        if handler.is_some() {
+            info!("Stream already running");
+            return Ok(());
+        }
+
+        if let Some(factory) = &self.stream_factory {
+            let handle = factory(); // call closure
+            *handler = Some(handle);
+            info!("Video stream started via closure");
+        } else {
+            warn!("No stream factory configured");
+        }
+
+        Ok(())
+    }
+
+    pub async fn stop_stream(&self) -> anyhow::Result<()> {
+        let mut handler = self.stream_handler.lock().await;
+        if let Some(mut handle) = handler.take() {
+            tokio::task::spawn_blocking(move || {
+                handle.stop_video_stream();
+            })
+                .await?;
+            info!("Video streamer stopped and handle dropped");
+        } else {
+            warn!("No stream running to stop");
+        }
+        Ok(())
+    }
 }
 
 #[allow(dead_code)]
@@ -124,6 +161,29 @@ async fn connect_devic_retry(path: &Path, baud_rate: u32) -> anyhow::Result<Seri
 
                 sleep(Duration::from_secs(2)).await;
             }
+        }
+    }
+}
+
+
+pub struct VideoStreamerHandle {
+    pub stop_tx: watch::Sender<bool>,
+    pub handle: Option<thread::JoinHandle<()>>,
+}
+
+impl VideoStreamerHandle {
+    pub fn stop_video_stream(&mut self) {
+        info!("Sending stop signal to video thread...");
+        let _ = self.stop_tx.send(true);
+
+        if let Some(handle) = self.handle.take() {
+            if let Err(e) = handle.join() {
+                error!("Failed to join video thread: {:?}", e);
+            } else {
+                info!("Video thread stopped cleanly.");
+            }
+        } else {
+            warn!("Video thread handle already taken or stopped.");
         }
     }
 }

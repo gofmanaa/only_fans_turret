@@ -1,14 +1,17 @@
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use super::pb::device_server::{Device, DeviceServer};
 use crate::action_service::{ActionService, Turret};
 use crate::actions::Action;
 use crate::pb::{CommandRequest, CommandResponse};
+use crate::pb::{StopStreamResponse, StopStreamRequest, StartStreamResponse, StartStreamRequest};
 use tonic::service::Interceptor;
 use tonic::{Request, Response, Status};
 use tracing::info;
 
 #[allow(dead_code)]
 pub struct GrpcDeviceServer {
-    pub action_service: ActionService<Turret>,
+    pub action_service: Arc<Mutex<ActionService<Turret>>>,
 }
 
 #[tonic::async_trait]
@@ -20,8 +23,8 @@ impl Device for GrpcDeviceServer {
         let command = request.into_inner();
         info!("Received action: {:?}", command);
         let action: Action = command.action().into();
-
-        self.action_service
+        let service = self.action_service.lock().await;
+        service
             .send_action(action)
             .await
             .map_err(|e| Status::internal(format!("Action service error: {}", e)))?;
@@ -31,6 +34,25 @@ impl Device for GrpcDeviceServer {
         };
 
         Ok(Response::new(reply))
+    }
+
+    async fn start_stream(&self, _request: Request<StartStreamRequest>) -> Result<Response<StartStreamResponse>, Status> {
+        let service = self.action_service.lock().await;
+        service
+            .start_stream()
+            .await
+            .map_err(|e| Status::internal(format!("Action service error: {}", e)))?;
+        Ok(Response::new(StartStreamResponse {}))
+    }
+
+    async fn stop_stream(&self, _request: Request<StopStreamRequest>) -> Result<Response<StopStreamResponse>, Status> {
+        let service = self.action_service.lock().await;
+        service
+            .stop_stream()
+            .await
+            .map_err(|e| Status::internal(format!("Action service error: {}", e)))?;
+
+        Ok(Response::new(StopStreamResponse {}))
     }
 }
 
@@ -51,7 +73,7 @@ impl Interceptor for GrpcDeviceServer {
 #[allow(dead_code)]
 impl GrpcDeviceServer {
     pub fn new(action_service: ActionService<Turret>) -> Self {
-        Self { action_service }
+        Self { action_service: Arc::new(Mutex::new(action_service)) }
     }
 
     pub fn into_service(self) -> DeviceServer<Self> {
