@@ -1,0 +1,36 @@
+FROM ghcr.io/cross-rs/arm-unknown-linux-musleabihf:latest
+
+RUN dpkg --add-architecture armhf \
+    && apt-get update \
+    && apt-get install -y \
+       gcc-arm-linux-gnueabi \
+       g++-arm-linux-gnueabi \
+       libc6-dev-armhf-cross \
+       libglib2.0-dev \
+       libgstreamer1.0-dev \
+       libgstreamer-plugins-base1.0-dev \
+       gstreamer1.0-plugins-base \
+       gstreamer1.0-plugins-good \
+       gstreamer1.0-plugins-bad \
+       gstreamer1.0-plugins-ugly \
+       gstreamer1.0-libav \
+       gstreamer1.0-tools \
+       gstreamer1.0-x \
+       gstreamer1.0-alsa \
+       gstreamer1.0-pulseaudio \
+       pkg-config \
+       build-essential \
+       protobuf-compiler \
+       wget unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install protoc
+RUN PROTOC_VER=23.4 && \
+    wget https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/protoc-${PROTOC_VER}-linux-x86_64.zip && \
+    unzip protoc-${PROTOC_VER}-linux-x86_64.zip -d /usr/local && \
+    rm protoc-${PROTOC_VER}-linux-x86_64.zip && \
+    export PATH=/usr/local/bin:$PATH
+
+WORKDIR /app
+COPY . .
+

@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Remote Control</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            height: 100vh; /* full viewport height */
+            gap: 20px;
+        }
+
+        .video-section, .control-section {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .video-section, .control-section {
+            flex-shrink: 0;
+        }
+
+        #videoStream {
+            width: 100%;
+            height: 400px;
+            background: #000;
+            border-radius: 5px;
+            object-fit: cover;
+        }
+
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            text-align: center;
+        }
+        .status.waiting { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .status.active { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status.disconnected { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+        .request-btn {
+            width: 100%;
+            padding: 15px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .request-btn.available { background: #007bff; color: white; }
+        .request-btn.available:hover { background: #0056b3; }
+        .request-btn:disabled { background: #6c757d; color: white; cursor: not-allowed; }
+
+        .video-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .control-grid {
+            display: grid;
+            grid-template-areas:
+        ". up ."
+        "left . right"
+        ". down .";
+            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-rows: auto auto auto;
+            gap: 10px;
+            justify-items: center;
+            align-items: center;
+            margin: 20px 0;
+        }
+
+        .control-btn {
+            padding: 15px;
+            font-size: 14px;
+            font-weight: bold;
+            border: 2px solid #dee2e6;
+            border-radius: 5px;
+            cursor: pointer;
+            background: white;
+            transition: all 0.2s;
+        }
+
+        #upBtn { grid-area: up; }
+        #leftBtn { grid-area: left; }
+        #rightBtn { grid-area: right; }
+        #downBtn { grid-area: down; }
+
+        .control-btn:enabled { border-color: #28a745; color: #28a745; }
+        .control-btn:enabled:hover { background: #28a745; color: white; transform: scale(1.05); }
+        .control-btn:enabled:active { transform: scale(0.95); }
+        .control-btn:disabled { color: #6c757d; cursor: not-allowed; }
+
+        .fire-btn {
+            width: 100%;
+            padding: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            border: 2px solid #dc3545;
+            border-radius: 5px;
+            background: white;
+            color: #dc3545;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 10px;
+        }
+        .fire-btn:enabled:hover { background: #dc3545; color: white; transform: scale(1.05); }
+        .fire-btn:enabled:active { transform: scale(0.95); }
+        .fire-btn:disabled { border-color: #6c757d; color: #6c757d; cursor: not-allowed; }
+
+        .release-btn {
+            width: 100%;
+            padding: 10px;
+            margin-top: 20px;
+            background: #ffc107;
+            color: #212529;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .release-btn:hover { background: #e0a800; }
+
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+
+            .control-section {
+                order: 0;
+            }
+        }
+
+        .video-controls {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .logo {
+            width: 100%;       /* fills the container width */
+            height: auto;      /* maintains aspect ratio */
+            max-width: 100%;   /* prevents overflow */
+            display: block;    /* removes inline spacing */
+            margin: 0 auto 20px; /* center and spacing */
+        }
+        .video-notice {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 10px; /* space between notice and video */
+        }
+    </style>
+</head>
+<body>
+<img src="static/logo.png" alt="Only Turret Fans" class="logo">
+<h1>Only Turret Fans</h1>
+
+<div class="container">
+    <div class="video-section">
+        <div class="video-notice">
+            The video does not start immediately, please wait.
+        </div>
+        <video id="videoStream" autoplay muted playsinline>
+            Your browser does not support video streaming.
+        </video>
+        <div class="video-controls">
+            <span>Bytes Received: <span id="bytesReceived">0</span></span>
+        </div>
+        <div class="video-controls">
+            <button id="startBtn" class="control-btn" aria-label="Start video">Start Video</button>
+            <button id="stopBtn" disabled class="control-btn" aria-label="Stop video">Stop Video</button>
+        </div>
+
+        <div class="status disconnected" id="connectionStatus">Disconnected</div>
+
+
+    </div>
+
+    <div class="control-section">
+        <button id="requestAccessBtn" class="request-btn available">
+            🎯 Request Access
+        </button>
+        <button id="releaseBtn" class="release-btn" style="display: none;">
+            Release Control
+        </button>
+
+        <div class="control-grid">
+            <button id="upBtn" class="control-btn" disabled aria-label="Move up">↑ UP</button>
+            <button id="leftBtn" class="control-btn" disabled aria-label="Move left">← LEFT</button>
+            <button id="rightBtn" class="control-btn" disabled aria-label="Move right">RIGHT →</button>
+            <button id="downBtn" class="control-btn" disabled aria-label="Move down">↓ DOWN</button>
+        </div>
+
+        <button id="fireBtn" class="fire-btn" disabled aria-label="Fire action">🔥 FIRE</button>
+    </div>
+
+    <div class="log" id="actionLog">
+        <div class="log-entry info">Waiting for connection...</div>
+    </div>
+</div>
+
+<script src="static/script.js"></script>
+</body>
+</html>

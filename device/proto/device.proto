@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package devices;
+
+service Device {
+  rpc DoAction (CommandRequest) returns (CommandResponse);
+}
+
+message CommandRequest {
+  Action action = 1;
+}
+
+message CommandResponse {
+  Action action = 1;
+}
+
+enum Action {
+  RIGHT = 0;
+  LEFT = 1;
+  UP = 2;
+  DOWN = 3;
+  FIRE = 4;
+}
