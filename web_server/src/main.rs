@@ -1,7 +1,3 @@
-mod action_service;
-mod actions;
-mod app_state;
-mod devices;
 mod handler;
 mod message;
 mod rtp;
@@ -9,8 +5,10 @@ mod sdp_handler;
 mod turn;
 mod config;
 
+mod app_state;
+
 use crate::app_state::AppState;
-use crate::devices::pb::device_client::DeviceClient;
+use device::pb::device_client::DeviceClient;
 use crate::handler::{serve_index, websocket_handler};
 use crate::rtp::rtp_thread;
 use crate::sdp_handler::{get_turn_credentials, handle_sdp_offer};

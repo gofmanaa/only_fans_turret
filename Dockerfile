@@ -38,8 +38,8 @@ RUN apt-get update && apt-get install -y curl bash ca-certificates \
 
 WORKDIR /app
 
-COPY --from=builder /app/web /app/web
-COPY --from=builder /app/target/release/main /app/http_server
+COPY --from=builder /app/web_server/web /app/web
+COPY --from=builder /app/target/release/web_server /app/http_server
 COPY --from=builder /app/target/release/device_server /usr/local/bin/device_server
 
 CMD ["./app/http_server"]

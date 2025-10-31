@@ -1,4 +1,4 @@
-use crate::actions::Action;
+use device::actions::Action;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

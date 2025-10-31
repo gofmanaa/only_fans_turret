@@ -1,0 +1,21 @@
+[package]
+name = "device"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "device"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+prost = "0.14.1"
+serde = { workspace = true }
+tokio = { workspace = true }
+tokio-serial = "5.4.5"
+tonic = { workspace = true }
+tonic-prost = "0.14.2"
+tracing = { workspace = true }
+
+[build-dependencies]
+tonic-prost-build = "0.14.2"

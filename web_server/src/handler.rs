@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::app_state::{AppState, UserSession};
-use crate::devices::pb::{Action as PbAction, CommandRequest};
+use device::pb::{Action as PbAction, CommandRequest};
 use crate::message::{ClientMessage, ServerMessage};
 use axum::response::Html;
 use axum::{

@@ -1,7 +1,3 @@
-mod action_service;
-mod actions;
-mod devices;
-
 #[cfg(feature = "gstream")]
 mod gst_v8_stream;
 #[cfg(feature = "gstream")]
@@ -9,8 +5,8 @@ use crate::gst_v8_stream::gstream::video_stream_start;
 #[cfg(feature = "gstream")]
 use tracing::error;
 
-use crate::action_service::ActionService;
-use crate::devices::grpc_server::GrpcDeviceServer;
+use device::action_service::ActionService;
+use device::grpc_server::GrpcDeviceServer;
 use clap::Parser;
 use std::net::SocketAddr;
 use std::path::PathBuf;

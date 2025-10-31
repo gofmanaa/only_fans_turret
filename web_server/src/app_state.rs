@@ -1,4 +1,4 @@
-use crate::devices::pb::device_client::DeviceClient;
+use device::pb::device_client::DeviceClient;
 use crate::message::ServerMessage;
 use axum::extract::ws::Message;
 use serde_json::to_string;

@@ -1,7 +1,7 @@
 use super::pb::device_server::{Device, DeviceServer};
 use crate::action_service::{ActionService, Turret};
 use crate::actions::Action;
-use crate::devices::pb::{CommandRequest, CommandResponse};
+use crate::pb::{CommandRequest, CommandResponse};
 use tonic::service::Interceptor;
 use tonic::{Request, Response, Status};
 use tracing::info;

@@ -1,12 +1,12 @@
 services:
-  http_server:
+  web_server:
     depends_on:
       - device_server
-    container_name: http_server
+    container_name: web_server
     build:
       context: .
       dockerfile: Dockerfile
-    command: ["/app/http_server"]
+    command: ["/app/web_server"]
     environment:
       SERVER_ADDR: "0.0.0.0:8080"
       DEVICE_SERVER_ADDR: "http://device_server:5001"
@@ -33,7 +33,7 @@ services:
       STTY_PATH: "/dev/ttyUSB0"
       BAUD_RATE: "9600"
       VIDEO_DEV: "/dev/video0"
-      V8STREAM_ADDR: "http_server:5004"
+      V8STREAM_ADDR: "web_server:5004"
       RUST_LOG: "info"
     #ports:
 #      - "5001:5001"

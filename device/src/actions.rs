@@ -1,4 +1,4 @@
-use crate::devices::pb::Action as ProtoAction;
+use crate::pb::Action as ProtoAction;
 use serde::{Deserialize, Serialize};
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
