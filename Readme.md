@@ -2,7 +2,7 @@
 
 
 <div style="text-align: center;">
-  <img src="web/mascot_200.png" alt="OnlyFansTurret" width="200">
+  <img src="web_server/web/mascot_200.png" alt="OnlyFansTurret" width="200">
 </div>
 
 ## Description
@@ -40,7 +40,7 @@ The service consists of three parts:
     ```
     
 ## Demo video
-[🎬 Watch demo video](web/demo.mp4)
+[🎬 Watch demo video](web_server/web//demo.mp4)
 
 
 ## Contributing

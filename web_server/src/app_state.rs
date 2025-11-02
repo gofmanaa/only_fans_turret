@@ -4,6 +4,7 @@ use axum::extract::ws::Message;
 use serde_json::to_string;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, RwLock, broadcast, mpsc};
 use tracing::{info, warn};
@@ -126,6 +127,8 @@ pub struct AppState {
     pub device_client: Arc<Mutex<DeviceClient<tonic::transport::Channel>>>,
     
     pub web_config: WebConfig,
+
+    pub is_streaming: Arc<AtomicBool>,
 }
 
 impl AppState {
@@ -143,6 +146,7 @@ impl AppState {
             api,
             device_client,
             web_config,
+            is_streaming: Arc::new(AtomicBool::new(false)),
         }
     }
 

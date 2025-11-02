@@ -115,8 +115,8 @@ impl ActionService<Turret> {
         }
 
         if let Some(factory) = &self.stream_factory {
-            let handle = factory(); // call closure
-            *handler = Some(handle);
+            let nwe_handle = factory(); // call closure
+            *handler = Some(nwe_handle);
             info!("Video stream started via closure");
         } else {
             warn!("No stream factory configured");

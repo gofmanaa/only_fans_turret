@@ -24,10 +24,13 @@ pub mod gstream {
     /// check camera: ffplay -f v4l2 -framerate 30 -video_size 1280x720 /dev/video3
     ///
     /// broadcast: gst-launch-1.0 v4l2src device=/dev/video0 ! videoconvert ! vp8enc deadline=1 threads=4 ! rtpvp8pay pt=96 ! udpsink host=127.0.0.1 port=5004
+    ///
     /// or with speed optimize
+    ///
     /// gst-launch-1.0 -v v4l2src device=/dev/video0 ! video/x-raw,width=640,height=360,framerate=15/1 ! videoconvert ! vp8enc deadline=1 cpu-used=5 row-mt=true threads=4 ! rtpvp8pay pt=96 ! udpsink host=127.0.0.1 port=5004 sync=false
     ///
     /// read: gst-launch-1.0 udpsrc port=5004 caps="application/x-rtp, media=video, encoding-name=VP8, payload=96" ! rtpvp8depay ! vp8dec ! videoconvert ! autovideosink
+    ///
     /// or with speed, shows frames as soon as they arrive. + `! sync=false`
 
     impl Vp8Streamer {
