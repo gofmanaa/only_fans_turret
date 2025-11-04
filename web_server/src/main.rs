@@ -18,9 +18,10 @@ use clap::Parser;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
+use anyhow::anyhow;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
-use tonic::transport::{Channel, Endpoint, Error};
+use tonic::transport::{Channel, Endpoint};
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
@@ -124,27 +125,36 @@ async fn main() -> anyhow::Result<()> {
 
 async fn connect_device_server(
     device_server: &str,
-) -> Result<Arc<Mutex<DeviceClient<Channel>>>, Error> {
-    let mut retries = 0;
+) -> anyhow::Result<Arc<Mutex<DeviceClient<Channel>>>> {
+    const MAX_RETRIES: u32 = 100;
+    const RETRY_DELAY: Duration = Duration::from_secs(2);
 
-    loop {
+    for attempt in 1..=MAX_RETRIES {
         let endpoint = Endpoint::from_shared(device_server.to_string())?;
 
         match endpoint.connect().await {
-            Ok(client) => {
-                info!("Connected to device server at {}", &device_server);
-                let client = DeviceClient::new(client);
+            Ok(channel) => {
+                info!("Connected to device server at {}", device_server);
+                let client = DeviceClient::new(channel);
                 return Ok(Arc::new(Mutex::new(client)));
             }
             Err(e) => {
-                retries += 1;
                 error!(
-                    "Failed to connect to device server {} (attempt {}): {}",
-                    device_server, retries, e
+                    "Failed to connect to device server {} (attempt {}/{}): {}",
+                    device_server, attempt, MAX_RETRIES, e
                 );
 
-                sleep(Duration::from_secs(2)).await;
+                if attempt == MAX_RETRIES {
+                    return Err(anyhow!(
+                        "Failed to connect to device server {} after {} attempts",
+                        device_server,
+                        MAX_RETRIES
+                    ));
+                }
+
+                sleep(RETRY_DELAY).await;
             }
         }
     }
+    unreachable!();
 }

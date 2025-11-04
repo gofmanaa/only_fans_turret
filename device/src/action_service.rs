@@ -10,7 +10,7 @@ use tokio::{
 };
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
 use tracing::{error, info, warn};
-use tokio::sync::watch;
+use tokio::sync::{oneshot};
 
 pub struct Turret;
 
@@ -142,39 +142,43 @@ impl ActionService<Turret> {
 
 #[allow(dead_code)]
 async fn connect_devic_retry(path: &Path, baud_rate: u32) -> anyhow::Result<SerialStream> {
-    let mut retries = 0;
+    const MAX_RETRIES: u32 = 100;
+    const RETRY_DELAY: Duration = Duration::from_secs(2);
 
-    loop {
+    for attempt in 1..=MAX_RETRIES {
         match tokio_serial::new(path.display().to_string(), baud_rate).open_native_async() {
             Ok(client) => {
                 info!("Connected to device at {}", path.display());
                 return Ok(client);
             }
             Err(e) => {
-                retries += 1;
                 warn!(
                     "Failed to connect to device {} (attempt {}): {}",
                     path.display(),
-                    retries,
+                    attempt,
                     e
                 );
 
-                sleep(Duration::from_secs(2)).await;
+                sleep(RETRY_DELAY).await;
             }
         }
     }
+
+    anyhow::bail!("Failed to connect after {MAX_RETRIES} attempts to {}", path.display());
 }
 
 
 pub struct VideoStreamerHandle {
-    pub stop_tx: watch::Sender<bool>,
+    pub stop_tx: Option<oneshot::Sender<()>>,
     pub handle: Option<thread::JoinHandle<()>>,
 }
 
 impl VideoStreamerHandle {
     pub fn stop_video_stream(&mut self) {
         info!("Sending stop signal to video thread...");
-        let _ = self.stop_tx.send(true);
+        if let Some(tx) = self.stop_tx.take() {
+            let _ = tx.send(());
+        }
 
         if let Some(handle) = self.handle.take() {
             if let Err(e) = handle.join() {
@@ -185,5 +189,11 @@ impl VideoStreamerHandle {
         } else {
             warn!("Video thread handle already taken or stopped.");
         }
+    }
+}
+
+impl Drop for VideoStreamerHandle {
+    fn drop(&mut self) {
+        self.stop_video_stream();
     }
 }

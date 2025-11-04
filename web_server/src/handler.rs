@@ -47,7 +47,7 @@ pub(crate) async fn websocket_handler(
 }
 
 async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: String) {
-    let user_session = UserSession::new(user_id.clone(), state.web_config.controller_ttl as u64);
+    let user_session = UserSession::new(user_id.clone(), state.web_config.controller_ttl);
     info!("New WebSocket connection: {}", user_id);
 
     state.add_user(user_session).await;
@@ -200,17 +200,14 @@ async fn handle_client_message(message: ClientMessage, user_id: &str, state: &Ar
         ClientMessage::ReleaseControl => {
             let should_process = {
                 let mut users = state.users.write().await;
-                if let Some(user) = users.get_mut(user_id) {
-                    if user.has_control {
-                        user.revoke_control();
+                users
+                    .get_mut(user_id)
+                    .filter(|u| u.has_control)
+                    .map(|u| {
+                        u.revoke_control();
                         info!("User {} released control", user_id);
-                        true
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
+                    })
+                    .is_some()
             };
 
             if should_process {

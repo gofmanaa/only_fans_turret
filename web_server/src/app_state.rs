@@ -1,6 +1,7 @@
-use device::pb::device_client::DeviceClient;
+use crate::config::WebConfig;
 use crate::message::ServerMessage;
 use axum::extract::ws::Message;
+use device::pb::device_client::DeviceClient;
 use serde_json::to_string;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
@@ -9,7 +10,6 @@ use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, RwLock, broadcast, mpsc};
 use tracing::{info, warn};
 use webrtc::rtp::packet::Packet;
-use crate::config::WebConfig;
 
 #[derive(Debug, Clone)]
 pub struct UserSession {
@@ -125,7 +125,7 @@ pub struct AppState {
     pub rtp_broadcast: broadcast::Sender<Packet>,
     pub(crate) api: Arc<webrtc::api::API>,
     pub device_client: Arc<Mutex<DeviceClient<tonic::transport::Channel>>>,
-    
+
     pub web_config: WebConfig,
 
     pub is_streaming: Arc<AtomicBool>,

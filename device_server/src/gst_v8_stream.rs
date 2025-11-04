@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use tokio::sync::watch;
+use tokio::sync::{oneshot};
 use tracing::{error, info};
 use device::action_service::VideoStreamerHandle;
 use crate::gst_v8_stream::gstream::Vp8Streamer;
@@ -125,7 +125,6 @@ pub mod gstream {
         }
 
         /// Stop streaming
-        #[allow(dead_code)]
         pub fn stop(&self) -> anyhow::Result<()> {
             self.pipeline.set_state(gst::State::Null)?;
             info!("Vp8Streamer stop.");
@@ -142,7 +141,7 @@ pub mod gstream {
 
 
 pub fn video_stream_start(video_dev: PathBuf, v8stream_addr: &str) -> VideoStreamerHandle {
-    let (stop_tx, stop_rx) = watch::channel(false);
+    let (stop_tx, stop_rx) = oneshot::channel();
     let stream_addr = resolve_with_retry(v8stream_addr);
 
     info!("Video device: {}, stream to {}", video_dev.display(), stream_addr);
@@ -154,7 +153,6 @@ pub fn video_stream_start(video_dev: PathBuf, v8stream_addr: &str) -> VideoStrea
 
     let handle = {
         let streamer = Arc::clone(&streamer);
-        let stop_rx = stop_rx.clone();
 
         thread::spawn(move || {
             if let Err(e) = streamer.start() {
@@ -165,13 +163,10 @@ pub fn video_stream_start(video_dev: PathBuf, v8stream_addr: &str) -> VideoStrea
             info!("Streamer started and running...");
 
             loop {
-                match stop_rx.has_changed() {
-                    Ok(true) => {
+                match stop_rx.blocking_recv() {
+                    Ok(()) => {
                         info!("Stop signal received in video thread.");
                         break;
-                    }
-                    Ok(false) => {
-                        thread::sleep(Duration::from_millis(100));
                     }
                     Err(_) => {
                         info!("Stop channel closed unexpectedly.");
@@ -188,26 +183,35 @@ pub fn video_stream_start(video_dev: PathBuf, v8stream_addr: &str) -> VideoStrea
         })
     };
 
-    VideoStreamerHandle { stop_tx, handle: Some(handle) }
+    VideoStreamerHandle { stop_tx: Some(stop_tx), handle: Some(handle) }
 }
 
 fn resolve_with_retry(addr: &str) -> SocketAddr {
-    let mut retries = 0;
-    loop {
+    const MAX_RETRIES: u32 = 100;
+    const RETRY_DELAY: Duration = Duration::from_secs(2);
+
+    for attempt in 1..=MAX_RETRIES {
         match addr.to_socket_addrs() {
             Ok(mut iter) => {
-                if let Some(a) = iter.next() {
-                    return a;
+                if let Some(addr) = iter.next() {
+                    return addr;
+                } else {
+                    error!(
+                        "No addresses resolved for '{}' on attempt {}/{}",
+                        addr, attempt, MAX_RETRIES
+                    );
                 }
             }
             Err(e) => {
-                retries += 1;
                 error!(
-                        "Failed to connect to device {} (attempt {}): {}",
-                        addr, retries, e
-                    );
+                    "Failed to resolve '{}', attempt {}/{}: {}",
+                    addr, attempt, MAX_RETRIES, e
+                );
             }
         }
-        thread::sleep(Duration::from_secs(1));
+
+        thread::sleep(RETRY_DELAY);
     }
+
+    panic!("❌ Failed to resolve '{}' after {} attempts", addr, MAX_RETRIES);
 }

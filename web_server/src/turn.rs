@@ -15,7 +15,7 @@ pub struct TurnCredentials {
 }
 
 pub fn generate_turn_credentials(config: WebConfig) -> TurnCredentials {
-    let expiry = Utc::now().timestamp() + config.turn_ttl;
+    let expiry = Utc::now().timestamp() + config.turn_ttl as i64;
 
     let rest_username = format!("{}:{}", expiry, config.turn_user_name);
     let mut mac = HmacSha1::new_from_slice(config.turn_secret_key.as_bytes()).unwrap();

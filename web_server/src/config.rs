@@ -4,11 +4,11 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize, Clone)]
 pub struct WebConfig {
     pub turn_realm: String,
-    pub turn_port: i64,
+    pub turn_port: u16,
     pub turn_secret_key: String,
     pub turn_user_name: String,
-    pub turn_ttl: i64,
-    pub controller_ttl: i64,
+    pub turn_ttl: u32,
+    pub controller_ttl: u64,
 }
 
 impl WebConfig {
