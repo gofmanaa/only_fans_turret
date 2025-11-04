@@ -7,6 +7,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast::error::RecvError;
 use tracing::{error, info};
+use uuid::Uuid;
 use webrtc::ice_transport::ice_credential_type::RTCIceCredentialType;
 use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::peer_connection::configuration::RTCConfiguration;
@@ -20,7 +21,7 @@ use crate::turn::{generate_turn_credentials, TurnCredentials};
 
 #[derive(Deserialize)]
 pub struct TurnRequest {
-    pub client_id: String,
+    pub client_id: Uuid,
 }
 
 #[derive(Serialize)]
@@ -30,7 +31,7 @@ pub struct TurnResponse {
 
 #[derive(Deserialize)]
 pub struct SdpRequest {
-    pub client_id: String,
+    pub client_id: Uuid,
     pub sdp: String,
     #[serde(rename = "type")]
     pub sdp_type: String,
@@ -41,7 +42,7 @@ pub struct SdpResponse {
     #[serde(rename = "type")]
     pub sdp_type: String,
     pub sdp: String,
-    pub client_id: String,
+    pub client_id: Uuid,
 }
 
 
@@ -65,7 +66,7 @@ pub async fn handle_sdp_offer(
             "User session not found".to_string(),
         ))?;
 
-    let client_id = user_session.id.clone();
+    let client_id = user_session.id;
     info!("Processing SDP offer for client: {}", client_id);
 
     let turn_creds = generate_turn_credentials(app_state.web_config.clone());
@@ -118,7 +119,7 @@ pub async fn handle_sdp_offer(
     {
         let track_clone = video_track.clone();
         let mut rtp_receiver = app_state.rtp_broadcast.subscribe();
-        let client_id_clone = client_id.clone();
+        let client_id_clone = client_id;
 
         tokio::spawn(async move {
             info!("Starting RTP forwarding for client: {}", client_id_clone);
@@ -146,7 +147,7 @@ pub async fn handle_sdp_offer(
         });
     }
 
-    setup_pc_monitoring(pc.clone(), client_id.clone());
+    setup_pc_monitoring(pc.clone(), client_id);
 
     // Process SDP offer
     let offer_sdp = RTCSessionDescription::offer(request.sdp).map_err(|e| {
@@ -230,10 +231,10 @@ pub async fn get_turn_credentials(
 
 fn setup_pc_monitoring(
     pc: Arc<webrtc::peer_connection::RTCPeerConnection>,
-    client_id: String,
+    client_id: Uuid,
 ) {
     pc.on_peer_connection_state_change(Box::new(move |state: RTCPeerConnectionState| {
-        let client_id = client_id.clone();
+        let client_id = client_id;
         info!("Client {} PeerConnection state: {:?}", client_id, state);
 
         // Handle cleanup on failed/closed states

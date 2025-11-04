@@ -11,6 +11,7 @@ use axum::{
     },
     response::IntoResponse,
 };
+use axum::http::StatusCode;
 use axum_extra::extract::CookieJar;
 use axum_extra::extract::cookie::Cookie;
 use futures_util::{SinkExt, StreamExt};
@@ -42,12 +43,28 @@ pub(crate) async fn websocket_handler(
 ) -> impl IntoResponse {
     // Get user_id from Cookie
     info!("Websocket handling connection");
-    let user_id = jar.get("user_id").map(|c| c.value().to_string()).unwrap();
-    ws.on_upgrade(|socket| handle_websocket(socket, state, user_id))
+    let Some(cookie) = jar.get("user_id") else {
+        warn!("Missing user_id cookie in WebSocket request");
+        return (
+            StatusCode::UNAUTHORIZED,
+            "Missing user_id cookie",
+        )
+            .into_response();
+    };
+
+    let Ok(user_uuid) = Uuid::parse_str(cookie.value()) else {
+        warn!("Invalid UUID in user_id cookie: {}", cookie.value());
+        return (
+            StatusCode::BAD_REQUEST,
+            "Invalid user_id cookie value",
+        )
+            .into_response();
+    };
+    ws.on_upgrade(move |socket| handle_websocket(socket, state, user_uuid))
 }
 
-async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: String) {
-    let user_session = UserSession::new(user_id.clone(), state.web_config.controller_ttl);
+async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: Uuid) {
+    let user_session = UserSession::new(user_id, state.web_config.controller_ttl);
     info!("New WebSocket connection: {}", user_id);
 
     state.add_user(user_session).await;
@@ -55,13 +72,12 @@ async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: Stri
     let (mut ws_sender, mut ws_receiver) = socket.split();
     let (tx, mut rx) = mpsc::channel::<Message>(100); // Channel for sending messages to this specific user
 
-    let user_id_for_senders = user_id.clone();
     // Store the sender for this user
     state
         .user_ws_senders
         .write()
         .await
-        .insert(user_id_for_senders.clone(), tx);
+        .insert(user_id, tx);
 
     // Spawn task to handle outgoing messages to client (from the mpsc channel)
     let outgoing_task = tokio::spawn(async move {
@@ -69,7 +85,7 @@ async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: Stri
             if let Err(e) = ws_sender.send(msg).await {
                 warn!(
                     "Failed to send message to user {}: {}",
-                    user_id_for_senders, e
+                    user_id, e
                 );
                 break;
             }
@@ -78,7 +94,6 @@ async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: Stri
 
     // Spawn task to handle incoming messages from client
     let state_clone = state.clone();
-    let user_id_clone = user_id.clone(); // Clone user_id for incoming task
     let incoming_task = tokio::spawn(async move {
         while let Some(msg) = ws_receiver.next().await {
             match msg {
@@ -87,18 +102,18 @@ async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: Stri
                     if let Ok(client_msg) = serde_json::from_str::<ClientMessage>(&text) {
                         handle_client_message(
                             client_msg,
-                            &user_id_clone,
+                            user_id,
                             &state_clone,
                         )
                         .await;
                     }
                 }
                 Ok(Message::Close(_)) => {
-                    info!("WebSocket closed by client: {}", user_id_clone);
+                    info!("WebSocket closed by client: {}", user_id);
                     break;
                 }
                 Err(e) => {
-                    warn!("WebSocket error for {}: {}", user_id_clone, e);
+                    warn!("WebSocket error for {}: {}", user_id, e);
                     break;
                 }
                 _ => {}
@@ -119,12 +134,12 @@ async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: Stri
     info!("WebSocket connection closed: {}", user_id);
 }
 
-async fn handle_client_message(message: ClientMessage, user_id: &str, state: &Arc<AppState>) {
+async fn handle_client_message(message: ClientMessage, user_id: Uuid, state: &Arc<AppState>) {
     match message {
         ClientMessage::RequestAccess => {
             let position = {
                 let mut queue = state.queue.lock().await;
-                queue.add_user(user_id.to_string())
+                queue.add_user(user_id)
             };
             info!(
                 "User {} requested access, position in queue: {}",
@@ -133,9 +148,9 @@ async fn handle_client_message(message: ClientMessage, user_id: &str, state: &Ar
 
             state
                 .send_message_to_user(
-                    user_id,
+                    &user_id,
                     ServerMessage::QueuePosition {
-                        user_id: user_id.to_string(),
+                        user_id,
                         position,
                     },
                 )
@@ -146,7 +161,7 @@ async fn handle_client_message(message: ClientMessage, user_id: &str, state: &Ar
 
         ClientMessage::Control { action } => {
             let mut users = state.users.write().await; // write, not read
-            if let Some(user) = users.get_mut(user_id) {
+            if let Some(user) = users.get_mut(&user_id) {
                 if user.has_control && !user.is_control_expired() {
                     info!(
                         "User has control: {}; can do action: {:?}",
@@ -175,9 +190,9 @@ async fn handle_client_message(message: ClientMessage, user_id: &str, state: &Ar
 
                     state
                         .send_message_to_user(
-                            user_id,
+                            &user_id,
                             ServerMessage::ControlAction {
-                                user_id: user_id.to_string(),
+                                user_id,
                                 action,
                             },
                         )
@@ -187,9 +202,9 @@ async fn handle_client_message(message: ClientMessage, user_id: &str, state: &Ar
 
                     state
                         .send_message_to_user(
-                            user_id,
+                            &user_id,
                             ServerMessage::AccessDenied {
-                                user_id: user_id.to_string(),
+                                user_id,
                             },
                         )
                         .await;
@@ -201,7 +216,7 @@ async fn handle_client_message(message: ClientMessage, user_id: &str, state: &Ar
             let should_process = {
                 let mut users = state.users.write().await;
                 users
-                    .get_mut(user_id)
+                    .get_mut(&user_id)
                     .filter(|u| u.has_control)
                     .map(|u| {
                         u.revoke_control();
@@ -221,12 +236,12 @@ async fn handle_client_message(message: ClientMessage, user_id: &str, state: &Ar
 
         ClientMessage::GetUserId => {
             let users = state.users.read().await;
-            if let Some(user) = users.get(user_id) {
+            if let Some(user) = users.get(&user_id) {
                 state
                     .send_message_to_user(
-                        user_id,
+                        &user_id,
                         ServerMessage::ResponseUserId {
-                            user_id: user.id.clone(),
+                            user_id: user.id,
                         },
                     )
                     .await;

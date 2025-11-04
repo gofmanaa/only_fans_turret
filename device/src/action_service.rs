@@ -127,11 +127,8 @@ impl ActionService<Turret> {
 
     pub async fn stop_stream(&self) -> anyhow::Result<()> {
         let mut handler = self.stream_handler.lock().await;
-        if let Some(mut handle) = handler.take() {
-            tokio::task::spawn_blocking(move || {
-                handle.stop_video_stream();
-            })
-                .await?;
+        if let Some(handle) = handler.take() {
+                drop(handle);
             info!("Video streamer stopped and handle dropped");
         } else {
             warn!("No stream running to stop");
@@ -174,7 +171,7 @@ pub struct VideoStreamerHandle {
 }
 
 impl VideoStreamerHandle {
-    pub fn stop_video_stream(&mut self) {
+    fn stop_video_stream(&mut self) {
         info!("Sending stop signal to video thread...");
         if let Some(tx) = self.stop_tx.take() {
             let _ = tx.send(());

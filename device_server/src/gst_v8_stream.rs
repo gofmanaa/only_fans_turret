@@ -213,5 +213,5 @@ fn resolve_with_retry(addr: &str) -> SocketAddr {
         thread::sleep(RETRY_DELAY);
     }
 
-    panic!("❌ Failed to resolve '{}' after {} attempts", addr, MAX_RETRIES);
+    panic!("Failed to resolve '{}' after {} attempts", addr, MAX_RETRIES);
 }

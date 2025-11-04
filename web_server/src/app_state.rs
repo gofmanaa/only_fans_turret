@@ -9,11 +9,12 @@ use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, RwLock, broadcast, mpsc};
 use tracing::{info, warn};
+use uuid::Uuid;
 use webrtc::rtp::packet::Packet;
 
 #[derive(Debug, Clone)]
 pub struct UserSession {
-    pub id: String,
+    pub id: Uuid,
     pub has_control: bool,
     pub control_granted_at: Option<Instant>,
     last_action_at: Option<Instant>,
@@ -23,9 +24,9 @@ pub struct UserSession {
 const ACTION_COOLDOWN: Duration = Duration::from_millis(300);
 
 impl UserSession {
-    pub fn new(user_id: impl Into<String>, session_ttl_sec: u64) -> Self {
+    pub fn new(user_id: Uuid, session_ttl_sec: u64) -> Self {
         Self {
-            id: user_id.into(),
+            id: user_id,
             has_control: false,
             control_granted_at: None,
             last_action_at: None,
@@ -65,8 +66,8 @@ impl UserSession {
 
 #[derive(Debug, Default)]
 pub struct AccessQueue {
-    queue: VecDeque<String>,
-    active_user: Option<String>,
+    queue: VecDeque<Uuid>,
+    active_user: Option<Uuid>,
 }
 
 impl AccessQueue {
@@ -74,35 +75,35 @@ impl AccessQueue {
         Self::default()
     }
 
-    pub fn add_user(&mut self, user_id: String) -> usize {
-        if !self.queue.contains(&user_id) && self.active_user.as_deref() != Some(&user_id) {
+    pub fn add_user(&mut self, user_id: Uuid) -> usize {
+        if !self.queue.contains(&user_id) && self.active_user.as_ref() != Some(&user_id) {
             info!("User {} added to queue", user_id);
             self.queue.push_back(user_id);
         }
         self.queue.len()
     }
 
-    pub fn remove_user(&mut self, user_id: &str) {
+    pub fn remove_user(&mut self, user_id: &Uuid) {
         self.queue.retain(|id| id != user_id);
-        if self.active_user.as_deref() == Some(user_id) {
+        if self.active_user == Some(*user_id) {
             info!("Active user {} removed", user_id);
             self.deactivate();
         }
     }
 
-    pub fn next_user(&mut self) -> Option<String> {
+    pub fn next_user(&mut self) -> Option<Uuid> {
         self.active_user = self.queue.pop_front();
-        self.active_user.clone()
+        self.active_user
     }
 
-    pub fn position(&self, user_id: &str) -> Option<usize> {
+    pub fn position(&self, user_id: &Uuid) -> Option<usize> {
         self.queue
             .iter()
             .position(|id| id == user_id)
             .map(|p| p + 1)
     }
 
-    pub fn active(&self) -> Option<&String> {
+    pub fn active(&self) -> Option<&Uuid> {
         self.active_user.as_ref()
     }
 
@@ -110,16 +111,16 @@ impl AccessQueue {
         self.active_user = None
     }
 
-    pub fn waiting_list(&self) -> Vec<String> {
+    pub fn waiting_list(&self) -> Vec<Uuid> {
         self.queue.iter().cloned().collect()
     }
 }
 
 // Application State
-type UserWSSender = Arc<RwLock<HashMap<String, mpsc::Sender<Message>>>>;
+type UserWSSender = Arc<RwLock<HashMap<Uuid, mpsc::Sender<Message>>>>;
 
 pub struct AppState {
-    pub users: Arc<RwLock<HashMap<String, UserSession>>>,
+    pub users: Arc<RwLock<HashMap<Uuid, UserSession>>>,
     pub queue: Arc<Mutex<AccessQueue>>,
     pub user_ws_senders: UserWSSender,
     pub rtp_broadcast: broadcast::Sender<Packet>,
@@ -151,23 +152,23 @@ impl AppState {
     }
 
     pub async fn add_user(&self, user: UserSession) {
-        let user_id = user.id.clone();
-        info!("User {} session added", &user_id);
+        let user_id = user.id;
+        info!("User {} session added", user_id);
         self.users.write().await.insert(user_id, user);
     }
 
-    pub async fn get_user(&self, user_id: &str) -> Option<UserSession> {
+    pub async fn get_user(&self, user_id: &Uuid) -> Option<UserSession> {
         self.users.read().await.get(user_id).cloned()
     }
 
-    pub async fn remove_user(&self, user_id: &str) {
+    pub async fn remove_user(&self, user_id: &Uuid) {
         info!("User {} session removed", user_id);
         self.users.write().await.remove(user_id);
         self.queue.lock().await.remove_user(user_id);
         self.user_ws_senders.write().await.remove(user_id);
     }
 
-    pub async fn send_message_to_user(&self, user_id: &str, message: ServerMessage) {
+    pub async fn send_message_to_user(&self, user_id: &Uuid, message: ServerMessage) {
         if let Ok(json_message) = to_string(&message) {
             let mut senders = self.user_ws_senders.write().await;
             if let Some(sender) = senders.get_mut(user_id) {
@@ -213,7 +214,7 @@ impl AppState {
                 self.send_message_to_user(
                     active,
                     ServerMessage::AccessDenied {
-                        user_id: active.clone(),
+                        user_id: *active,
                     },
                 )
                 .await;
@@ -229,14 +230,14 @@ impl AppState {
             self.send_message_to_user(
                 &next,
                 ServerMessage::AccessGranted {
-                    user_id: next.clone(),
+                    user_id: next,
                 },
             )
             .await;
         }
 
         // Notify waiting users about their queue position
-        let positions: Vec<(String, usize)> = {
+        let positions: Vec<(Uuid, usize)> = {
             let queue = self.queue.lock().await;
             waiting_users
                 .into_iter()
@@ -248,7 +249,7 @@ impl AppState {
             self.send_message_to_user(
                 &uid,
                 ServerMessage::QueuePosition {
-                    user_id: uid.clone(),
+                    user_id: uid,
                     position: pos,
                 },
             )
@@ -271,29 +272,35 @@ impl AppState {
 #[cfg(test)]
 mod tests {
     use crate::app_state::AccessQueue;
+    use uuid::Uuid;
 
     #[test]
     fn queue_add_user() {
         let mut queue = AccessQueue::new();
-        let len = queue.add_user("sasha".to_string());
+
+        let sasha = Uuid::new_v4();
+        let alise = Uuid::new_v4();
+
+        let len = queue.add_user(sasha);
         assert_eq!(len, 1);
         assert_eq!(queue.active_user, None);
-        let len = queue.add_user("alise".to_string());
+
+        let len = queue.add_user(alise);
         assert_eq!(len, 2);
 
-        let position = queue.position("sasha").unwrap();
+        let position = queue.position(&sasha).unwrap();
         assert_eq!(position, 1);
 
-        let position = queue.position("alise").unwrap();
+        let position = queue.position(&alise).unwrap();
         assert_eq!(position, 2);
 
         let next = queue.next_user().unwrap();
         assert_eq!(queue.active(), Some(&next));
-        assert_eq!(queue.active(), Some(&"sasha".to_string()));
+        assert_eq!(queue.active(), Some(&sasha));
 
         let next = queue.next_user().unwrap();
         assert_eq!(queue.active(), Some(&next));
-        assert_eq!(queue.active(), Some(&"alise".to_string()));
+        assert_eq!(queue.active(), Some(&alise));
 
         let _ = queue.next_user();
         assert_eq!(queue.active(), None);
@@ -302,22 +309,27 @@ mod tests {
     #[test]
     fn queue_remove_user() {
         let mut queue = AccessQueue::new();
-        queue.add_user("sasha".to_string());
-        queue.add_user("bob".to_string());
-        let len = queue.add_user("alise".to_string());
+
+        let sasha = Uuid::new_v4();
+        let bob = Uuid::new_v4();
+        let alise = Uuid::new_v4();
+
+        queue.add_user(sasha);
+        queue.add_user(bob);
+        let len = queue.add_user(alise);
         assert_eq!(len, 3);
 
-        assert_eq!(queue.position("sasha").unwrap(), 1);
-        assert_eq!(queue.position("bob").unwrap(), 2);
-        assert_eq!(queue.position("alise").unwrap(), 3);
+        assert_eq!(queue.position(&sasha).unwrap(), 1);
+        assert_eq!(queue.position(&bob).unwrap(), 2);
+        assert_eq!(queue.position(&alise).unwrap(), 3);
 
-        queue.remove_user("bob");
-        assert_eq!(queue.position("sasha").unwrap(), 1);
-        assert_eq!(queue.position("alise").unwrap(), 2);
+        queue.remove_user(&bob);
+        assert_eq!(queue.position(&sasha).unwrap(), 1);
+        assert_eq!(queue.position(&alise).unwrap(), 2);
 
-        queue.remove_user("sasha");
-        assert_eq!(queue.position("sasha"), None);
-        assert_eq!(queue.position("alise").unwrap(), 1);
+        queue.remove_user(&sasha);
+        assert_eq!(queue.position(&sasha), None);
+        assert_eq!(queue.position(&alise).unwrap(), 1);
 
         assert_eq!(queue.active(), None);
     }

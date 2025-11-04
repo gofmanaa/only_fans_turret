@@ -22,7 +22,7 @@ tonic = { workspace = true }
 tower-http = { version = "0.5", features = ["fs", "cors", "trace"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-uuid = { version = "1.0", features = ["v4"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
 webrtc = "0.8"
 
 #tracing-loki = { version = "0.2.6",  default-features = false, features = ["compat-0-2-1"] }
