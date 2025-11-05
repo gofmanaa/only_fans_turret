@@ -291,6 +291,10 @@ class WSController {
                 this.updateStatus('🎮 You have control!', 'active');
                 this.log('Access granted!', 'success');
                 break;
+            case 'TimeLeft':
+                const time_left_s = msg.time;
+                this.updateStatus(`🎮 You have control! ${time_left_s}s left`, 'active');
+                break;
             case 'AccessDenied':
                 this.releaseControl();
                 this.updateStatus('No access', 'disconnected');

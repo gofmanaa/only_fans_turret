@@ -1,24 +1,25 @@
+mod config;
 mod handler;
 mod message;
 mod rtp;
 mod sdp_handler;
 mod turn;
-mod config;
 
 mod app_state;
 
 use crate::app_state::AppState;
-use device::pb::device_client::DeviceClient;
+use crate::config::WebConfig;
 use crate::handler::{serve_index, websocket_handler};
 use crate::rtp::rtp_thread;
 use crate::sdp_handler::{get_turn_credentials, handle_sdp_offer};
-use axum::Router;
+use anyhow::anyhow;
 use axum::routing::{get, post};
 use clap::Parser;
+use device::pb::device_client::DeviceClient;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use anyhow::anyhow;
+use axum::Router;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
 use tonic::transport::{Channel, Endpoint};
@@ -35,7 +36,6 @@ use webrtc::api::media_engine::MediaEngine;
 use webrtc::api::setting_engine::SettingEngine;
 use webrtc::ice::network_type::NetworkType;
 use webrtc::interceptor::registry::Registry;
-use crate::config::WebConfig;
 
 #[derive(Parser)]
 struct Cli {
@@ -61,7 +61,6 @@ async fn main() -> anyhow::Result<()> {
     //     .extra_field("pid", format!("{}", process::id()))?
     //     .http_header("X-Scope-OrgID", "tenant1")?
     //     .build_url(Url::parse("http://127.0.0.1:3100").unwrap())?;
-
     tracing_subscriber::registry()
         //  .with(layer)
         .with(tracing_subscriber::fmt::Layer::new())
@@ -158,3 +157,4 @@ async fn connect_device_server(
     }
     unreachable!();
 }
+

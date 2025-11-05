@@ -1,6 +1,7 @@
 use crate::config::WebConfig;
 use crate::message::ServerMessage;
 use axum::extract::ws::Message;
+use chrono::Utc;
 use device::pb::device_client::DeviceClient;
 use serde_json::to_string;
 use std::collections::{HashMap, VecDeque};
@@ -19,6 +20,7 @@ pub struct UserSession {
     pub control_granted_at: Option<Instant>,
     last_action_at: Option<Instant>,
     session_ttl: Duration,
+    active_at: Option<chrono::DateTime<Utc>>,
 }
 
 const ACTION_COOLDOWN: Duration = Duration::from_millis(300);
@@ -31,17 +33,20 @@ impl UserSession {
             control_granted_at: None,
             last_action_at: None,
             session_ttl: Duration::from_secs(session_ttl_sec),
+            active_at: None,
         }
     }
 
     pub fn grant_control(&mut self) {
         self.has_control = true;
         self.control_granted_at = Some(Instant::now());
+        self.active_at = Some(Utc::now());
     }
 
     pub fn revoke_control(&mut self) {
         self.has_control = false;
         self.control_granted_at = None;
+        self.active_at = None;
     }
 
     pub fn is_control_expired(&self) -> bool {
@@ -59,6 +64,27 @@ impl UserSession {
 
     pub fn record_action(&mut self) {
         self.last_action_at = Some(Instant::now());
+    }
+
+    pub fn time_left(&self) -> Duration {
+        let Some(last) = self.active_at else {
+            return Duration::from_secs(0);
+        };
+
+        let now = Utc::now();
+        let elapsed = now.signed_duration_since(last);
+
+        let elapsed_std = if elapsed.num_milliseconds() > 0 {
+            Duration::from_millis(elapsed.num_milliseconds() as u64)
+        } else {
+            Duration::from_millis(0)
+        };
+
+        if self.session_ttl > elapsed_std {
+            self.session_ttl - elapsed_std
+        } else {
+            Duration::from_secs(0)
+        }
     }
 }
 
@@ -108,7 +134,7 @@ impl AccessQueue {
     }
 
     pub fn deactivate(&mut self) {
-        self.active_user = None
+        self.active_user = None;
     }
 
     pub fn waiting_list(&self) -> Vec<Uuid> {
@@ -211,13 +237,9 @@ impl AppState {
             if expired {
                 info!("User {} expired, control revoked", active);
                 self.queue.lock().await.deactivate();
-                self.send_message_to_user(
-                    active,
-                    ServerMessage::AccessDenied {
-                        user_id: *active,
-                    },
-                )
-                .await;
+                // todo: refactor mv to new module fasad
+                self.send_message_to_user(active, ServerMessage::AccessDenied { user_id: *active })
+                    .await;
             }
         }
 
@@ -227,13 +249,9 @@ impl AppState {
         {
             user.grant_control();
             info!("User {} granted control", next);
-            self.send_message_to_user(
-                &next,
-                ServerMessage::AccessGranted {
-                    user_id: next,
-                },
-            )
-            .await;
+            // todo: refactor mv to new module fasad
+            self.send_message_to_user(&next, ServerMessage::AccessGranted { user_id: next })
+                .await;
         }
 
         // Notify waiting users about their queue position
@@ -246,6 +264,7 @@ impl AppState {
         };
 
         for (uid, pos) in positions {
+            // todo: refactor mv to new module fasad
             self.send_message_to_user(
                 &uid,
                 ServerMessage::QueuePosition {
@@ -254,6 +273,23 @@ impl AppState {
                 },
             )
             .await;
+        }
+
+        // Active user time left
+        let queue = self.queue.lock().await;
+        if let Some(active_user) = queue.active() &&
+            let Some(active_user_session) = self.users.read().await.get(active_user) {
+                let time_left: Duration = active_user_session.time_left();
+                info!("time left {:?}s", time_left.as_secs());
+                // todo: refactor mv to new module fasad
+                self.send_message_to_user(
+                    active_user,
+                    ServerMessage::TimeLeft {
+                        user_id:  *active_user,
+                        time: time_left.as_secs(),
+                    },
+                )
+                    .await;
         }
     }
 
@@ -268,7 +304,6 @@ impl AppState {
         });
     }
 }
-
 #[cfg(test)]
 mod tests {
     use crate::app_state::AccessQueue;

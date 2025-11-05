@@ -20,4 +20,5 @@ pub enum ServerMessage {
     QueuePosition { user_id: Uuid, position: usize },
     ControlAction { user_id: Uuid, action: Action },
     ResponseUserId { user_id: Uuid },
+    TimeLeft { user_id: Uuid, time: u64 },
 }
