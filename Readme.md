@@ -62,7 +62,6 @@ External NAT helper:
 └──────────────────────────────┘
 ```
 
-```
 ```mermaid
 %%{init: {'theme': 'default', 'themeVariables': { 'primaryColor': '#4C9AFF', 'edgeLabelBackground':'#ffffff', 'actorTextColor': '#000000' }}}%%
 graph TD
