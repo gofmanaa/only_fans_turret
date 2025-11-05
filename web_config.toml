@@ -1,0 +1,6 @@
+turn_realm = "localhost.com"
+turn_secret_key = "SECRET_KEY"
+turn_user_name = "webrtcuser_name"
+turn_ttl = 3600
+turn_port = 3478
+controller_ttl = 30

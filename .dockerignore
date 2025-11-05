@@ -1,0 +1,10 @@
+target/
+.git/
+.gitignore
+
+.DS_Store
+.idea/
+.vscode/
+evaluate-loki
+
+Dockerfile.cross
