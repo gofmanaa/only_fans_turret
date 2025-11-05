@@ -82,7 +82,7 @@ jobs:
             cd ~/${{ env.IMAGE_NAME }}
             ls -alh
             echo "Stopping old process..."
-            pkill -f web_server 2>/dev/null || echo "No existing process found."
+            # pkill -f web_server 2>/dev/null || echo "No existing process found."
             echo "chmod"
             chmod +x web_server
             echo "Starting new process..."
