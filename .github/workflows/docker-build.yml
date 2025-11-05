@@ -48,7 +48,7 @@ jobs:
           context: .
           file: ./Dockerfile.cross
           push: true
-          platforms: linux/arm/v7
+          platforms: linux/amd64
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.cargo_version.outputs.cargo_version }}
