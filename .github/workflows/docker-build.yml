@@ -46,30 +46,30 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile
+          file: ./Dockerfile.cross
           push: true
-          platforms: linux/amd64
+          platforms: linux/arm/v7
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.cargo_version.outputs.cargo_version }}
 
-      - name: Build binary
-        uses: houseabsolute/actions-rust-cross@v1
-        with:
-          command: build
-          target: arm-unknown-linux-musleabihf
-          args: "--locked --release"
-          strip: true
+#      - name: Build binary
+#        uses: houseabsolute/actions-rust-cross@v1
+#        with:
+#          command: build
+#          target: arm-unknown-linux-musleabihf
+#          args: "--locked --release"
+#          strip: true
 
-      - name: Upload binary to server
-        uses: appleboy/scp-action@v1
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          port: ${{ secrets.PORT }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: target/arm-unknown-linux-musleabihf/release/web_server
-          target: ~/${{ env.IMAGE_NAME }}/
+#      - name: Upload binary to server
+#        uses: appleboy/scp-action@v1
+#        with:
+#          host: ${{ secrets.SERVER_HOST }}
+#          port: ${{ secrets.PORT }}
+#          username: ${{ secrets.SERVER_USER }}
+#          key: ${{ secrets.SSH_PRIVATE_KEY }}
+#          source: target/arm-unknown-linux-musleabihf/release/web_server
+#          target: ~/${{ env.IMAGE_NAME }}/
 
       - name: Deploy container to server
         uses: appleboy/ssh-action@v1
@@ -80,13 +80,20 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd ~/${{ env.IMAGE_NAME }}
-            ls -alh
-            echo "Stopping old process..."
-            # pkill -f web_server 2>/dev/null || echo "No existing process found."
-            echo "chmod"
-            chmod +x web_server
-            echo "Starting new process..."
-            nohup ./web_server -d http://192.168.1.13:5001 -r 192.168.1.10:5004 2>&1 &
-            sleep 2
-            pgrep -f web_server >/dev/null && echo "Deployed successfully!" || echo "Warning: process did not start."
+            echo "Stopping old container..."
+            docker stop ${{ env.IMAGE_NAME }} 2>/dev/null || true
+            docker rm ${{ env.IMAGE_NAME }} 2>/dev/null || true
             
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+
+            echo "Starting new container..."
+            docker run -d \
+              --name ${{ env.IMAGE_NAME }} \
+              --restart unless-stopped \
+              -p 5001:5001 \
+              -p 5004:5004 \
+              ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest \
+              -d http://192.168.1.13:5001 \
+              -r 192.168.1.10:5004
+
+            echo "Deployment completed successfully!"

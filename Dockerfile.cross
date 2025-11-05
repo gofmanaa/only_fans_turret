@@ -34,3 +34,11 @@ RUN PROTOC_VER=23.4 && \
 WORKDIR /app
 COPY . .
 
+RUN cargo build --target=arm-unknown-linux-musleabihf --release
+
+FROM scratch
+WORKDIR /app
+COPY web_server/web ./web_server/web
+COPY --from=0 /app/target/arm-unknown-linux-musleabihf/release/web_server /app/web_server
+ENTRYPOINT ["/app/web_server"]
+
