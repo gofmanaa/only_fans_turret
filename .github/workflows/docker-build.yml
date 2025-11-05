@@ -65,6 +65,7 @@ jobs:
         uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
+          port: ${{ secrets.PORT }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: target/arm-unknown-linux-musleabihf/release/web_server
@@ -74,6 +75,7 @@ jobs:
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
+          port: ${{ secrets.PORT }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
