@@ -53,13 +53,23 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.cargo_version.outputs.cargo_version }}
 
-#      - name: Build binary
-#        uses: houseabsolute/actions-rust-cross@v1
-#        with:
-#          command: build
-#          target: arm-unknown-linux-musleabihf
-#          args: "--locked --release"
-#          strip: true
+      - name: Build binary
+        uses: houseabsolute/actions-rust-cross@v1
+        with:
+          command: build
+          target: arm-unknown-linux-musleabihf
+          args: "--locked --release"
+          strip: true
+
+      - name: Build Docker image for ARM
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.arm
+          push: true
+          platforms: linux/arm/v6
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:arm
 
 #      - name: Upload binary to server
 #        uses: appleboy/scp-action@v1
@@ -84,7 +94,7 @@ jobs:
             docker stop ${{ env.IMAGE_NAME }} 2>/dev/null || true
             docker rm ${{ env.IMAGE_NAME }} 2>/dev/null || true
             
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:arm
 
             echo "Starting new container..."
             docker run -d \
@@ -92,7 +102,7 @@ jobs:
               --restart unless-stopped \
               -p 5001:5001 \
               -p 5004:5004 \
-              ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest \
+              ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:arm \
               -d http://192.168.1.13:5001 \
               -r 192.168.1.10:5004
 

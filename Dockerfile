@@ -1,4 +1,4 @@
-FROM  rust:1.90.0-bookworm AS builder
+FROM ghcr.io/cross-rs/arm-unknown-linux-musleabihf:latest AS builder
 
 RUN apt-get update && apt-get install -y protobuf-compiler pkg-config libssl-dev \
         libgstreamer1.0-dev \
