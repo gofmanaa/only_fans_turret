@@ -1,4 +1,4 @@
-FROM --platform=linux/arm/v6 debian:bookworm-slim
+FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y \
     libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-COPY target/arm-unknown-linux-musleabihf/release/web_server /app/web_server
+COPY target/arm-unknown-linux-musleabihf/release/web_server ./web_server
 
 # Run your app
 CMD ["./web_server"]
