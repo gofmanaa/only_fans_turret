@@ -80,8 +80,10 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd ~/${{ env.IMAGE_NAME }}
+            ls -alh
             echo "Stopping old process..."
             pkill -f web_server 2>/dev/null || echo "No existing process found."
+            echo "chmod"
             chmod +x web_server
             echo "Starting new process..."
             nohup ./web_server -d http://192.168.1.13:5001 -r 192.168.1.10:5004 2>&1 &
