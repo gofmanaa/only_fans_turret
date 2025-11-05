@@ -63,36 +63,36 @@ External NAT helper:
 ```
 
 ```mermaid
-%%{init: {'theme': 'default', 'themeVariables': { 'primaryColor': '#4C9AFF', 'edgeLabelBackground':'#ffffff', 'actorTextColor': '#000000' }}}%%
+%%{init: {'theme': 'default'}}%%
 graph TD
 
     %% === LAYERS ===
-    subgraph Frontend [🌐 Frontend Layer]
-        U[User (Browser)]
+    subgraph Frontend ["🌐 Frontend Layer"]
+        U["User (Browser)"]
     end
 
-    subgraph Backend [🖥️ Backend Layer]
-        WS[Web Server<br/>• Handles WS & HTTP<br/>• Manages WebRTC Signaling]
-        DS[Device Server<br/>• Handles gRPC<br/>• Controls GStreamer Video]
+    subgraph Backend ["🖥️ Backend Layer"]
+        WS["Web Server\nHandles WS & HTTP\nManages WebRTC Signaling"]
+        DS["Device Server\nHandles gRPC\nControls GStreamer Video"]
     end
 
-    subgraph Device [⚙️ Device Layer]
-        D[Physical Device<br/>• Serial Connection]
-        CAM[Camera<br/>• GStreamer Source]
+    subgraph Device ["⚙️ Device Layer"]
+        D["Physical Device\nSerial Connection"]
+        CAM["Camera\nGStreamer Source"]
     end
 
-    subgraph Network [🌍 Network Infra]
-        TURN[coturn Server<br/>• NAT Traversal<br/>• WebRTC Relay]
+    subgraph Network ["🌍 Network Infra"]
+        TURN["coturn Server\nNAT Traversal / WebRTC Relay"]
     end
 
     %% === CONNECTIONS ===
-    U <-->|WebSocket / WebRTC| WS
-    WS <-->|gRPC| DS
-    DS <-->|Serial| D
-    DS -->|Video Stream (GStreamer)| WS
-    WS -->|WebRTC P2P| U
+    U <-->|"WebSocket / WebRTC"| WS
+    WS <-->|"gRPC"| DS
+    DS <-->|"Serial"| D
+    DS -->|"Video Stream (GStreamer)"| WS
+    WS -->|"WebRTC P2P"| U
     WS --- TURN
-    CAM -->|RTSP / GStreamer| DS
+    CAM -->|"RTSP / GStreamer"| DS
 ```
 
 ## Prerequisites
