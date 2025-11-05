@@ -277,19 +277,20 @@ impl AppState {
 
         // Active user time left
         let queue = self.queue.lock().await;
-        if let Some(active_user) = queue.active() &&
-            let Some(active_user_session) = self.users.read().await.get(active_user) {
-                let time_left: Duration = active_user_session.time_left();
-                info!("time left {:?}s", time_left.as_secs());
-                // todo: refactor mv to new module fasad
-                self.send_message_to_user(
-                    active_user,
-                    ServerMessage::TimeLeft {
-                        user_id:  *active_user,
-                        time: time_left.as_secs(),
-                    },
-                )
-                    .await;
+        if let Some(active_user) = queue.active()
+            && let Some(active_user_session) = self.users.read().await.get(active_user)
+        {
+            let time_left: Duration = active_user_session.time_left();
+            info!("time left {:?}s", time_left.as_secs());
+            // todo: refactor mv to new module fasad
+            self.send_message_to_user(
+                active_user,
+                ServerMessage::TimeLeft {
+                    user_id: *active_user,
+                    time: time_left.as_secs(),
+                },
+            )
+            .await;
         }
     }
 

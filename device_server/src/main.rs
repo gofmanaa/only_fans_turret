@@ -1,10 +1,10 @@
 #[cfg(feature = "gstream")]
 mod gst_v8_stream;
+use clap::Parser;
+use device::action_service::ActionService;
 #[cfg(feature = "gstream")]
 use device::action_service::VideoStreamerHandle;
-use device::action_service::ActionService;
 use device::grpc_server::GrpcDeviceServer;
-use clap::Parser;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use tokio::signal;
@@ -49,13 +49,13 @@ async fn main() -> anyhow::Result<()> {
             let video_dev = cli.video_dev.clone();
             let v8_addr = cli.v8stream_addr.clone();
 
-            Box::new(move || {
-                gst_v8_stream::video_stream_start(video_dev.clone(), &v8_addr)
-            }) as Box<dyn Fn() -> VideoStreamerHandle + Send + Sync>
+            Box::new(move || gst_v8_stream::video_stream_start(video_dev.clone(), &v8_addr))
+                as Box<dyn Fn() -> VideoStreamerHandle + Send + Sync>
         };
 
         let action_service =
-            ActionService::new(cli.stty_path.as_path(), cli.baud_rate, Some(stream_factory)).await?;
+            ActionService::new(cli.stty_path.as_path(), cli.baud_rate, Some(stream_factory))
+                .await?;
 
         let device_server = GrpcDeviceServer::new(action_service);
 

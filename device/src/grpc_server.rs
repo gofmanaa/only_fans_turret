@@ -1,10 +1,10 @@
-use std::sync::Arc;
-use tokio::sync::Mutex;
 use super::pb::device_server::{Device, DeviceServer};
 use crate::action_service::{ActionService, Turret};
 use crate::actions::Action;
 use crate::pb::{CommandRequest, CommandResponse};
-use crate::pb::{StopStreamResponse, StopStreamRequest, StartStreamResponse, StartStreamRequest};
+use crate::pb::{StartStreamRequest, StartStreamResponse, StopStreamRequest, StopStreamResponse};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use tonic::service::Interceptor;
 use tonic::{Request, Response, Status};
 use tracing::info;
@@ -36,7 +36,10 @@ impl Device for GrpcDeviceServer {
         Ok(Response::new(reply))
     }
 
-    async fn start_stream(&self, _request: Request<StartStreamRequest>) -> Result<Response<StartStreamResponse>, Status> {
+    async fn start_stream(
+        &self,
+        _request: Request<StartStreamRequest>,
+    ) -> Result<Response<StartStreamResponse>, Status> {
         let service = self.action_service.lock().await;
         service
             .start_stream()
@@ -45,7 +48,10 @@ impl Device for GrpcDeviceServer {
         Ok(Response::new(StartStreamResponse {}))
     }
 
-    async fn stop_stream(&self, _request: Request<StopStreamRequest>) -> Result<Response<StopStreamResponse>, Status> {
+    async fn stop_stream(
+        &self,
+        _request: Request<StopStreamRequest>,
+    ) -> Result<Response<StopStreamResponse>, Status> {
         let service = self.action_service.lock().await;
         service
             .stop_stream()
@@ -73,7 +79,9 @@ impl Interceptor for GrpcDeviceServer {
 #[allow(dead_code)]
 impl GrpcDeviceServer {
     pub fn new(action_service: ActionService<Turret>) -> Self {
-        Self { action_service: Arc::new(Mutex::new(action_service)) }
+        Self {
+            action_service: Arc::new(Mutex::new(action_service)),
+        }
     }
 
     pub fn into_service(self) -> DeviceServer<Self> {

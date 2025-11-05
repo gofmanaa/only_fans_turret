@@ -1,10 +1,11 @@
 use crate::app_state::AppState;
+use crate::turn::{TurnCredentials, generate_turn_credentials};
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::Json as AxumJson;
-use std::sync::Arc;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tokio::sync::broadcast::error::RecvError;
 use tracing::{error, info};
 use uuid::Uuid;
@@ -17,7 +18,6 @@ use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::TrackLocalWriter;
 use webrtc::track::track_local::track_local_static_rtp::TrackLocalStaticRTP;
-use crate::turn::{generate_turn_credentials, TurnCredentials};
 
 #[derive(Deserialize)]
 pub struct TurnRequest {
@@ -45,7 +45,6 @@ pub struct SdpResponse {
     pub client_id: Uuid,
 }
 
-
 /// Handle SDP offer from client and create peer connection
 pub async fn handle_sdp_offer(
     State(app_state): State<Arc<AppState>>,
@@ -58,13 +57,10 @@ pub async fn handle_sdp_offer(
         ));
     }
 
-    let user_session = app_state
-        .get_user(&request.client_id)
-        .await
-        .ok_or((
-            StatusCode::UNAUTHORIZED,
-            "User session not found".to_string(),
-        ))?;
+    let user_session = app_state.get_user(&request.client_id).await.ok_or((
+        StatusCode::UNAUTHORIZED,
+        "User session not found".to_string(),
+    ))?;
 
     let client_id = user_session.id;
     info!("Processing SDP offer for client: {}", client_id);
@@ -133,7 +129,10 @@ pub async fn handle_sdp_offer(
                         }
                     }
                     Err(RecvError::Lagged(skipped)) => {
-                        error!("RTP receiver lagged for client {}, skipped {} packets", client_id_clone, skipped);
+                        error!(
+                            "RTP receiver lagged for client {}, skipped {} packets",
+                            client_id_clone, skipped
+                        );
                         continue;
                     }
                     Err(RecvError::Closed) => {
@@ -159,7 +158,10 @@ pub async fn handle_sdp_offer(
     })?;
 
     pc.set_remote_description(offer_sdp).await.map_err(|e| {
-        error!("Failed to set remote description for {}: {:?}", client_id, e);
+        error!(
+            "Failed to set remote description for {}: {:?}",
+            client_id, e
+        );
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("Failed to set remote description: {:?}", e),
@@ -167,7 +169,10 @@ pub async fn handle_sdp_offer(
     })?;
 
     let answer = pc.create_answer(None).await.map_err(|e| {
-        error!("Failed to set remote description for {}: {:?}", client_id, e);
+        error!(
+            "Failed to set remote description for {}: {:?}",
+            client_id, e
+        );
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("Failed to create answer: {:?}", e),
@@ -186,7 +191,7 @@ pub async fn handle_sdp_offer(
 
     // Wait for ICE gathering
     let mut gather_complete = pc.gathering_complete_promise().await;
-    let _ =gather_complete.recv().await;
+    let _ = gather_complete.recv().await;
 
     // Get final local description
     let local_desc = pc.local_description().await.ok_or_else(|| {
@@ -205,18 +210,14 @@ pub async fn handle_sdp_offer(
     }))
 }
 
-
 pub async fn get_turn_credentials(
     State(app_state): State<Arc<AppState>>,
     Json(request): Json<TurnRequest>,
 ) -> Result<AxumJson<TurnResponse>, (StatusCode, String)> {
-    app_state
-        .get_user(&request.client_id)
-        .await
-        .ok_or((
-            StatusCode::UNAUTHORIZED,
-            "User session not found".to_string(),
-        ))?;
+    app_state.get_user(&request.client_id).await.ok_or((
+        StatusCode::UNAUTHORIZED,
+        "User session not found".to_string(),
+    ))?;
 
     let turn_creds = generate_turn_credentials(app_state.web_config.clone());
 
@@ -229,16 +230,16 @@ pub async fn get_turn_credentials(
     }))
 }
 
-fn setup_pc_monitoring(
-    pc: Arc<webrtc::peer_connection::RTCPeerConnection>,
-    client_id: Uuid,
-) {
+fn setup_pc_monitoring(pc: Arc<webrtc::peer_connection::RTCPeerConnection>, client_id: Uuid) {
     pc.on_peer_connection_state_change(Box::new(move |state: RTCPeerConnectionState| {
         let client_id = client_id;
         info!("Client {} PeerConnection state: {:?}", client_id, state);
 
         // Handle cleanup on failed/closed states
-        if matches!(state, RTCPeerConnectionState::Failed | RTCPeerConnectionState::Closed) {
+        if matches!(
+            state,
+            RTCPeerConnectionState::Failed | RTCPeerConnectionState::Closed
+        ) {
             info!("Peer connection {} terminated", client_id);
         }
 

@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use crate::app_state::{AppState, UserSession};
-use device::pb::{Action as PbAction, CommandRequest};
 use crate::message::{ClientMessage, ServerMessage};
+use axum::http::StatusCode;
 use axum::response::Html;
 use axum::{
     extract::{
@@ -11,9 +11,9 @@ use axum::{
     },
     response::IntoResponse,
 };
-use axum::http::StatusCode;
 use axum_extra::extract::CookieJar;
 use axum_extra::extract::cookie::Cookie;
+use device::pb::{Action as PbAction, CommandRequest};
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
@@ -45,20 +45,12 @@ pub(crate) async fn websocket_handler(
     info!("Websocket handling connection");
     let Some(cookie) = jar.get("user_id") else {
         warn!("Missing user_id cookie in WebSocket request");
-        return (
-            StatusCode::UNAUTHORIZED,
-            "Missing user_id cookie",
-        )
-            .into_response();
+        return (StatusCode::UNAUTHORIZED, "Missing user_id cookie").into_response();
     };
 
     let Ok(user_uuid) = Uuid::parse_str(cookie.value()) else {
         warn!("Invalid UUID in user_id cookie: {}", cookie.value());
-        return (
-            StatusCode::BAD_REQUEST,
-            "Invalid user_id cookie value",
-        )
-            .into_response();
+        return (StatusCode::BAD_REQUEST, "Invalid user_id cookie value").into_response();
     };
     ws.on_upgrade(move |socket| handle_websocket(socket, state, user_uuid))
 }
@@ -73,20 +65,13 @@ async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: Uuid
     let (tx, mut rx) = mpsc::channel::<Message>(100); // Channel for sending messages to this specific user
 
     // Store the sender for this user
-    state
-        .user_ws_senders
-        .write()
-        .await
-        .insert(user_id, tx);
+    state.user_ws_senders.write().await.insert(user_id, tx);
 
     // Spawn task to handle outgoing messages to client (from the mpsc channel)
     let outgoing_task = tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
             if let Err(e) = ws_sender.send(msg).await {
-                warn!(
-                    "Failed to send message to user {}: {}",
-                    user_id, e
-                );
+                warn!("Failed to send message to user {}: {}", user_id, e);
                 break;
             }
         }
@@ -100,12 +85,7 @@ async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: Uuid
                 Ok(Message::Text(text)) => {
                     debug!("Received text message: {}", text);
                     if let Ok(client_msg) = serde_json::from_str::<ClientMessage>(&text) {
-                        handle_client_message(
-                            client_msg,
-                            user_id,
-                            &state_clone,
-                        )
-                        .await;
+                        handle_client_message(client_msg, user_id, &state_clone).await;
                     }
                 }
                 Ok(Message::Close(_)) => {
@@ -147,13 +127,7 @@ async fn handle_client_message(message: ClientMessage, user_id: Uuid, state: &Ar
             );
 
             state
-                .send_message_to_user(
-                    &user_id,
-                    ServerMessage::QueuePosition {
-                        user_id,
-                        position,
-                    },
-                )
+                .send_message_to_user(&user_id, ServerMessage::QueuePosition { user_id, position })
                 .await;
 
             state.process_queue().await;
@@ -191,22 +165,14 @@ async fn handle_client_message(message: ClientMessage, user_id: Uuid, state: &Ar
                     state
                         .send_message_to_user(
                             &user_id,
-                            ServerMessage::ControlAction {
-                                user_id,
-                                action,
-                            },
+                            ServerMessage::ControlAction { user_id, action },
                         )
                         .await;
                 } else {
                     warn!("User {} attempted control without permission", user_id);
 
                     state
-                        .send_message_to_user(
-                            &user_id,
-                            ServerMessage::AccessDenied {
-                                user_id,
-                            },
-                        )
+                        .send_message_to_user(&user_id, ServerMessage::AccessDenied { user_id })
                         .await;
                 }
             }
@@ -240,9 +206,7 @@ async fn handle_client_message(message: ClientMessage, user_id: Uuid, state: &Ar
                 state
                     .send_message_to_user(
                         &user_id,
-                        ServerMessage::ResponseUserId {
-                            user_id: user.id,
-                        },
+                        ServerMessage::ResponseUserId { user_id: user.id },
                     )
                     .await;
                 info!("ResponseUserId {}", user_id);

@@ -13,13 +13,13 @@ use crate::handler::{serve_index, websocket_handler};
 use crate::rtp::rtp_thread;
 use crate::sdp_handler::{get_turn_credentials, handle_sdp_offer};
 use anyhow::anyhow;
+use axum::Router;
 use axum::routing::{get, post};
 use clap::Parser;
 use device::pb::device_client::DeviceClient;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use axum::Router;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
 use tonic::transport::{Channel, Endpoint};
@@ -157,4 +157,3 @@ async fn connect_device_server(
     }
     unreachable!();
 }
-

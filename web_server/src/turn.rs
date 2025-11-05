@@ -1,9 +1,9 @@
-use base64::{engine::general_purpose, Engine as _};
+use crate::config::WebConfig;
+use base64::{Engine as _, engine::general_purpose};
 use chrono::Utc;
 use hmac::{Hmac, Mac};
 use serde::Serialize;
 use sha1::Sha1;
-use crate::config::WebConfig;
 
 type HmacSha1 = Hmac<Sha1>;
 

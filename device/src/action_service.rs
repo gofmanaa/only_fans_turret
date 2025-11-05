@@ -2,6 +2,7 @@ use crate::actions::Action;
 use anyhow::anyhow;
 use std::marker::PhantomData;
 use std::{path::Path, sync::Arc, thread, time::Duration};
+use tokio::sync::oneshot;
 use tokio::time::sleep;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
@@ -10,7 +11,6 @@ use tokio::{
 };
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
 use tracing::{error, info, warn};
-use tokio::sync::{oneshot};
 
 pub struct Turret;
 
@@ -34,13 +34,17 @@ pub struct ActionService<D> {
     last_action: Arc<Mutex<Option<Instant>>>,
     device: PhantomData<D>,
     stream_handler: Arc<Mutex<Option<VideoStreamerHandle>>>,
-    stream_factory: Option<Box<dyn Fn() -> VideoStreamerHandle + Send + Sync>>
+    stream_factory: Option<Box<dyn Fn() -> VideoStreamerHandle + Send + Sync>>,
 }
 
 impl ActionService<Turret> {
     /// Create a new ActionService and start reading Arduino output
     #[allow(dead_code)]
-    pub async fn new(path: &Path, baud_rate: u32, stream_factory: Option<Box<dyn Fn() -> VideoStreamerHandle + Send + Sync>>) -> anyhow::Result<Self> {
+    pub async fn new(
+        path: &Path,
+        baud_rate: u32,
+        stream_factory: Option<Box<dyn Fn() -> VideoStreamerHandle + Send + Sync>>,
+    ) -> anyhow::Result<Self> {
         info!("Open serial port at {}", path.display());
 
         let port_stream = connect_devic_retry(path, baud_rate).await?;
@@ -128,7 +132,7 @@ impl ActionService<Turret> {
     pub async fn stop_stream(&self) -> anyhow::Result<()> {
         let mut handler = self.stream_handler.lock().await;
         if let Some(handle) = handler.take() {
-                drop(handle);
+            drop(handle);
             info!("Video streamer stopped and handle dropped");
         } else {
             warn!("No stream running to stop");
@@ -161,9 +165,11 @@ async fn connect_devic_retry(path: &Path, baud_rate: u32) -> anyhow::Result<Seri
         }
     }
 
-    anyhow::bail!("Failed to connect after {MAX_RETRIES} attempts to {}", path.display());
+    anyhow::bail!(
+        "Failed to connect after {MAX_RETRIES} attempts to {}",
+        path.display()
+    );
 }
-
 
 pub struct VideoStreamerHandle {
     pub stop_tx: Option<oneshot::Sender<()>>,

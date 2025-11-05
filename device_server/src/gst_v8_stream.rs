@@ -1,20 +1,20 @@
+use crate::gst_v8_stream::gstream::Vp8Streamer;
+use device::action_service::VideoStreamerHandle;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use tokio::sync::{oneshot};
+use tokio::sync::oneshot;
 use tracing::{error, info};
-use device::action_service::VideoStreamerHandle;
-use crate::gst_v8_stream::gstream::Vp8Streamer;
 
 pub mod gstream {
     use anyhow::Context;
     use gst::prelude::*;
     use gstreamer as gst;
-    use std::net::{SocketAddr};
+    use std::net::SocketAddr;
     use std::thread::available_parallelism;
-    use tracing::{info};
+    use tracing::info;
 
     /// Struct representing the VP8 UDP streamer
     pub(crate) struct Vp8Streamer {
@@ -139,12 +139,15 @@ pub mod gstream {
     }
 }
 
-
 pub fn video_stream_start(video_dev: PathBuf, v8stream_addr: &str) -> VideoStreamerHandle {
     let (stop_tx, stop_rx) = oneshot::channel();
     let stream_addr = resolve_with_retry(v8stream_addr);
 
-    info!("Video device: {}, stream to {}", video_dev.display(), stream_addr);
+    info!(
+        "Video device: {}, stream to {}",
+        video_dev.display(),
+        stream_addr
+    );
 
     let streamer = Arc::new(
         Vp8Streamer::new(video_dev.to_str().unwrap(), stream_addr)
@@ -183,7 +186,10 @@ pub fn video_stream_start(video_dev: PathBuf, v8stream_addr: &str) -> VideoStrea
         })
     };
 
-    VideoStreamerHandle { stop_tx: Some(stop_tx), handle: Some(handle) }
+    VideoStreamerHandle {
+        stop_tx: Some(stop_tx),
+        handle: Some(handle),
+    }
 }
 
 fn resolve_with_retry(addr: &str) -> SocketAddr {
@@ -213,5 +219,8 @@ fn resolve_with_retry(addr: &str) -> SocketAddr {
         thread::sleep(RETRY_DELAY);
     }
 
-    panic!("Failed to resolve '{}' after {} attempts", addr, MAX_RETRIES);
+    panic!(
+        "Failed to resolve '{}' after {} attempts",
+        addr, MAX_RETRIES
+    );
 }
