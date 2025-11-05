@@ -45,7 +45,11 @@ jobs:
           gstreamer1.0-x \
           gstreamer1.0-gl \
           libv4l-dev \
-          pkg-config
+          pkg-config \
+          protobuf-compiler
+
+      - name: Check protoc version
+        run: protoc --version
 
       - name: Install Rust Dependencies
         run: cargo fetch
