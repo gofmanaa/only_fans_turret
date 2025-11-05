@@ -79,9 +79,10 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            set +e
             cd ~/${{ env.IMAGE_NAME }}
             echo "Stopping old process..."
-            pkill -f web_server || echo "No existing process found."
+            pkill -f web_server 2>/dev/null || echo "No existing process found."
             chmod +x web_server
             echo "Starting new process..."
             nohup ./web_server -d http://192.168.1.13:5001 -r 192.168.1.10:5004 2>&1 &
