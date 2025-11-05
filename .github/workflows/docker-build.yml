@@ -28,6 +28,18 @@ jobs:
           echo "cargo_version=$VERSION" >> $GITHUB_OUTPUT
 
 
+      - name: Cache cargo registry + target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+            
+
       # Log in to Docker Hub
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -52,6 +64,8 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.cargo_version.outputs.cargo_version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Build binary
         uses: houseabsolute/actions-rust-cross@v1
@@ -70,6 +84,8 @@ jobs:
           platforms: linux/arm/v6
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:arm
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
 #      - name: Upload binary to server
 #        uses: appleboy/scp-action@v1
