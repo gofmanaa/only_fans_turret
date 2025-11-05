@@ -99,11 +99,11 @@ jobs:
             echo "Starting new container..."
             docker run -d \
               --name ${{ env.IMAGE_NAME }} \
-              --restart unless-stopped \
               -p 5001:5001 \
               -p 5004:5004 \
               ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:arm \
-              -d http://192.168.1.13:5001 \
-              -r 192.168.1.10:5004
+              ./web_server \
+              -d http://0.0.0.0:5001 \
+              -r 0.0.0.0:5004
 
             echo "Deployment completed successfully!"
