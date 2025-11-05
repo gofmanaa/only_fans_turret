@@ -7,7 +7,7 @@ on:
   workflow_dispatch: # manual trigger
 
 env:
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: only_fans_turret
 jobs:
   docker:
     runs-on: ubuntu-latest
@@ -68,7 +68,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: target/arm-unknown-linux-musleabihf/release/web_server
-          target: ~/${{ github.repository }}/
+          target: ~/${{ env.IMAGE_NAME }}/
 
       - name: Deploy container to server
         uses: appleboy/ssh-action@v1
@@ -77,7 +77,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd ~/${{ github.repository }}
+            cd ~/${{ env.IMAGE_NAME }}
             echo "Stopping old process..."
             pkill -f web_server || echo "No existing process found."
             chmod +x web_server
