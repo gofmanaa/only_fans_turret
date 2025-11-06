@@ -100,6 +100,8 @@ jobs:
 
       - name: Deploy container to server
         uses: appleboy/ssh-action@v1
+        env:
+          INPUT_COMMAND_TIMEOUT: 20m
         with:
           host: ${{ secrets.SERVER_HOST }}
           port: ${{ secrets.PORT }}
