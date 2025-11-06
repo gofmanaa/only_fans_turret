@@ -14,6 +14,7 @@ services:
     restart: no #unless-stopped
     volumes:
       - ./web_config.toml:/app/web_config.toml:ro
+      - ./web:/app/web:ro
     networks:
       - onlyfans_net
 

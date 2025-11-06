@@ -87,16 +87,17 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:arm
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          pull: false
 
-      - name: Upload binary to server
-        uses: appleboy/scp-action@v1
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          port: ${{ secrets.PORT }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: docker-compose.arm.yaml
-          target: ~/${{ env.IMAGE_NAME }}/
+#      - name: Upload binary to server
+#        uses: appleboy/scp-action@v1
+#        with:
+#          host: ${{ secrets.SERVER_HOST }}
+#          port: ${{ secrets.PORT }}
+#          username: ${{ secrets.SERVER_USER }}
+#          key: ${{ secrets.SSH_PRIVATE_KEY }}
+#          source: docker-compose.arm.yaml
+#          target: ~/${{ env.IMAGE_NAME }}/
 
       - name: Deploy container to server
         uses: appleboy/ssh-action@v1
@@ -105,6 +106,8 @@ jobs:
           port: ${{ secrets.PORT }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: docker-compose.arm.yaml
+          target: ~/${{ env.IMAGE_NAME }}/
           command_timeout: 20m
           script: |
             cd ~/${{ env.IMAGE_NAME }}
