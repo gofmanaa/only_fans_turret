@@ -87,15 +87,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-#      - name: Upload binary to server
-#        uses: appleboy/scp-action@v1
-#        with:
-#          host: ${{ secrets.SERVER_HOST }}
-#          port: ${{ secrets.PORT }}
-#          username: ${{ secrets.SERVER_USER }}
-#          key: ${{ secrets.SSH_PRIVATE_KEY }}
-#          source: target/arm-unknown-linux-musleabihf/release/web_server
-#          target: ~/${{ env.IMAGE_NAME }}/
+      - name: Upload binary to server
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          port: ${{ secrets.PORT }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: docker-compose.arm.yaml
+          target: ~/${{ env.IMAGE_NAME }}/
 
       - name: Deploy container to server
         uses: appleboy/ssh-action@v1
