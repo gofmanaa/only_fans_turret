@@ -106,8 +106,6 @@ jobs:
           port: ${{ secrets.PORT }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: docker-compose.arm.yaml
-          target: ~/${{ env.IMAGE_NAME }}/
           command_timeout: 20m
           script: |
             cd ~/${{ env.IMAGE_NAME }}
