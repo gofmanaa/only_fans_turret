@@ -11,8 +11,6 @@ services:
     ports:
       - "8080:8080"     # server address
       - "5001:5001"     # gRpc
-      - "3478:3478"     # WebRTC
-      - "3478:3478/udp" # WebRTC
     restart: no #unless-stopped
     volumes:
       - ./web_config.toml:/app/web_config.toml:ro
