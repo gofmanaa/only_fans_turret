@@ -11,6 +11,7 @@ services:
     ports:
       - "8080:8080"     # server address
       - "5001:5001"     # gRpc
+      - "5004:5004/udp" # video RTP stream
     restart: no #unless-stopped
     volumes:
       - ./web_config.toml:/app/web_config.toml:ro
