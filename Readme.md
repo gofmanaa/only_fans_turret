@@ -26,6 +26,75 @@ The service consists of three parts:
 - **Web server** – renders the web page and video, using WebSocket (WS) for server communication.
 - **Device** - communicates and receives commands via the serial port.
 
+## Architecture diagram
+```
+                    ┌────────────────────────┐
+                    │        User (Browser)  │
+                    │  Web UI (WebSocket)    │
+                    │  WebRTC Peer (P2P)     │
+                    └────────────┬───────────┘
+                                 │ WS (control)      ▲
+                                 │                   │ WebRTC (P2P) (ICE via TURN)
+                    ┌────────────▼────────────┐      │
+                    │        Web Server       │◀─────┘
+                    │ (HTTP + WS + gRPC client│
+                    │  + WebRTC gateway/agent)│
+                    └────────────┬────────────┘
+                                 │ gRPC
+                                 │
+                    ┌────────────▼────────────┐
+                    │      Device Server      │
+                    │ (gRPC server + GStream) │
+                    │  - Camera capture       │
+                    │  - gstreamer → WebServer│
+                    └────────────┬────────────┘
+                                 │ Serial (device control)
+                                 │
+                    ┌────────────▼────────────┐
+                    │        Physical Device  │
+                    │ (serial-controlled MCU) │
+                    └─────────────────────────┘
+
+External NAT helper:
+┌──────────────────────────────┐
+│           coturn             │
+│  (STUN/TURN for ICE relay)   │
+└──────────────────────────────┘
+```
+
+```mermaid
+%%{init: {'theme': 'default'}}%%
+graph TD
+
+    %% === LAYERS ===
+    subgraph Frontend ["🌐 Frontend Layer"]
+        U(["User (Browser)"])
+    end
+
+    subgraph Backend ["🖥️ Backend Layer"]
+        WS(["Web Server<br/>Handles WS & HTTP<br/>Manages WebRTC Signaling"])
+        DS(["Device Server<br/>Handles gRPC<br/>Controls GStreamer Video"])
+    end
+
+    subgraph Device ["⚙️ Device Layer"]
+        D(["Physical Device<br/>Serial Connection"])
+        CAM(["Camera<br/>GStreamer Source"])
+    end
+
+    subgraph Network ["🌍 Network Infra"]
+        TURN(["coturn Server<br/>NAT Traversal / WebRTC Relay"])
+    end
+
+    %% === CONNECTIONS ===
+    U <-->|"WebSocket / WebRTC"| WS
+    WS <-->|"gRPC"| DS
+    DS <-->|"Serial"| D
+    DS -->|"Video Stream (GStreamer)"| WS
+    WS -->|"WebRTC P2P"| U
+    WS --- TURN
+    CAM -->|"RTSP / GStreamer"| DS
+```
+
 ## Prerequisites
 
 *   Rust toolchain

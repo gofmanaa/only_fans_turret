@@ -1,4 +1,5 @@
 FROM ghcr.io/cross-rs/arm-unknown-linux-musleabihf:latest
+# CROSS_BASE_IMAGE=ghcr.io/cross-rs/arm-unknown-linux-musleabihf:0.2.5
 
 RUN dpkg --add-architecture armhf \
     && apt-get update \
@@ -32,5 +33,8 @@ RUN PROTOC_VER=23.4 && \
     export PATH=/usr/local/bin:$PATH
 
 WORKDIR /app
-COPY . .
+COPY device .
+COPY device_server .
+COPY web_server .
+COPY Cargo.toml Cargo.lock .
 

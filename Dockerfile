@@ -1,4 +1,4 @@
-FROM  rust:1.90.0-bookworm AS builder
+FROM rust:1.90.0-bookworm AS builder
 
 RUN apt-get update && apt-get install -y protobuf-compiler pkg-config libssl-dev \
         libgstreamer1.0-dev \
@@ -18,12 +18,10 @@ RUN apt-get update && apt-get install -y protobuf-compiler pkg-config libssl-dev
 WORKDIR /app
 
 COPY Cargo.toml Cargo.lock ./
-COPY proto ./proto
-
-RUN mkdir src && echo "fn main() {}" > src/main.rs && echo "fn main() {}" > src/device_server.rs
-RUN cargo build --release
-
-COPY . .
+COPY Cargo.lock Cargo.lock ./
+COPY device ./device
+COPY device_server ./device_server
+COPY web_server ./web_server
 
 RUN cargo build -r --features gstream
 
@@ -39,9 +37,9 @@ RUN apt-get update && apt-get install -y curl bash ca-certificates \
 WORKDIR /app
 
 COPY --from=builder /app/web_server/web /app/web
-COPY --from=builder /app/target/release/web_server /app/http_server
+COPY --from=builder /app/target/release/web_server /app/web_server
 COPY --from=builder /app/target/release/device_server /usr/local/bin/device_server
 
-CMD ["./app/http_server"]
+CMD ["./web_server"]
 # For http_server container
 # CMD ["device_server"]
