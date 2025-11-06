@@ -2,6 +2,7 @@ use config::{Config, ConfigError};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone)]
+#[must_use = "Configuration must be applied to take effect"]
 pub struct WebConfig {
     pub turn_realm: String,
     pub turn_port: u16,

@@ -108,18 +108,13 @@ jobs:
             cd ~/${{ env.IMAGE_NAME }}
             echo "Stopping old container..."
             docker stop ${{ env.IMAGE_NAME }} 2>/dev/null || true
-            docker rm ${{ env.IMAGE_NAME }} 2>/dev/null || true
+            # docker rm ${{ env.IMAGE_NAME }} 2>/dev/null || true
             
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:arm
 
             echo "Starting new container..."
-            docker run -d \
-              --name ${{ env.IMAGE_NAME }} \
-              -p 5001:5001 \
-              -p 5004:5004 \
-              ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:arm \
-              ./web_server \
-              -d http://0.0.0.0:5001 \
-              -r 0.0.0.0:5004
+            docker compose -f docker-compose.arm.yaml pull
+            docker compose -f docker-compose.arm.yaml down
+            docker compose -f docker-compose.arm.yaml up -d
 
             echo "Deployment completed successfully!"
