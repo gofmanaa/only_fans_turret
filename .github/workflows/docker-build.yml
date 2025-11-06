@@ -66,6 +66,7 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.cargo_version.outputs.cargo_version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          pull: false
 
       - name: Build binary
         uses: houseabsolute/actions-rust-cross@v1
@@ -106,13 +107,6 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd ~/${{ env.IMAGE_NAME }}
-            echo "Stopping old container..."
-            docker stop ${{ env.IMAGE_NAME }} 2>/dev/null || true
-            # docker rm ${{ env.IMAGE_NAME }} 2>/dev/null || true
-            
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:arm
-
-            echo "Starting new container..."
             docker compose -f docker-compose.arm.yaml pull
             docker compose -f docker-compose.arm.yaml down
             docker compose -f docker-compose.arm.yaml up -d
