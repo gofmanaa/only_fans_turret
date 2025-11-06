@@ -100,13 +100,12 @@ jobs:
 
       - name: Deploy container to server
         uses: appleboy/ssh-action@v1
-        env:
-          INPUT_COMMAND_TIMEOUT: 20m
         with:
           host: ${{ secrets.SERVER_HOST }}
           port: ${{ secrets.PORT }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          command_timeout: 20m
           script: |
             cd ~/${{ env.IMAGE_NAME }}
             docker compose -f docker-compose.arm.yaml pull
