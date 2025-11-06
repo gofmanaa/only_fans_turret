@@ -111,6 +111,6 @@ jobs:
             cd ~/${{ env.IMAGE_NAME }}
             docker compose -f docker-compose.arm.yaml pull
             docker compose -f docker-compose.arm.yaml down
-            docker compose -f docker-compose.arm.yaml up -d
+            docker compose -f docker-compose.arm.yaml up -d --remove-orphans
 
             echo "Deployment completed successfully!"
