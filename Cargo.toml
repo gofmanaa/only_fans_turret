@@ -1,6 +1,8 @@
 [workspace]
 members = ["device", "device_server", "web_server"]
 resolver = "2"
+exclude = ["device_firmvare"]
+
 
 [workspace.dependencies]
 anyhow = "1.0"

@@ -1,0 +1,36 @@
+[package]
+name = "turrel_serial"
+version = "0.1.0"
+authors = ["Olexander Hofman <gofmanaa@gmail.com>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "turrel_serial"
+test = false    
+bench = false
+
+[dependencies]
+panic-halt = "1.0.0"
+ufmt = { version="0.2.0" }
+nb = "1.1.0"
+embedded-hal = "1.0"
+heapless = "0.9.1"
+
+[dependencies.arduino-hal]
+git = "https://github.com/rahix/avr-hal"
+rev = "6de651a2303ad1f392fc628675af2372632df4fb"
+features = ["arduino-nano"]
+
+# Configure the build for minimal size - AVRs have very little program memory
+[profile.dev]
+panic = "abort"
+lto = true
+opt-level = "s"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+debug = true
+lto = true
+opt-level = "s"

@@ -18,6 +18,7 @@ use axum::routing::{get, post};
 use clap::Parser;
 use device::pb::device_client::DeviceClient;
 use std::net::SocketAddr;
+use std::process;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -30,6 +31,7 @@ use tracing::{error, info};
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
+use url::Url;
 use webrtc::api::APIBuilder;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::MediaEngine;
@@ -56,19 +58,19 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // let (layer, task) = tracing_loki::builder()
-    //     .label("host", "mine")?
-    //     .extra_field("pid", format!("{}", process::id()))?
-    //     .http_header("X-Scope-OrgID", "tenant1")?
-    //     .build_url(Url::parse("http://127.0.0.1:3100").unwrap())?;
+    let (layer, task) = tracing_loki::builder()
+        .label("host", "mine")?
+        .extra_field("pid", format!("{}", process::id()))?
+        .http_header("X-Scope-OrgID", "tenant1")?
+        .build_url(Url::parse("http://0.0.0.0:3100").unwrap())?;
     tracing_subscriber::registry()
-        //  .with(layer)
+        .with(layer)
         .with(tracing_subscriber::fmt::Layer::new())
         .with(EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("info")))
         .init();
 
-    // tracing_subscriber::fmt::init();
-    // tokio::spawn(task);
+    tracing_subscriber::fmt::init();
+    tokio::spawn(task);
 
     let cli = Cli::parse();
     let web_config = WebConfig::new()?;
