@@ -20,10 +20,13 @@ pub fn generate_turn_credentials(config: WebConfig) -> TurnCredentials {
     let rest_username = format!("{}:{}", expiry, config.turn_user_name);
     let mut mac = HmacSha1::new_from_slice(config.turn_secret_key.as_bytes()).unwrap();
     mac.update(rest_username.as_bytes());
+
     let result = mac.finalize().into_bytes();
     let credential = general_purpose::STANDARD.encode(result);
+
     let realm = config.turn_realm;
     let port = config.turn_port;
+
     TurnCredentials {
         username: rest_username,
         credential,

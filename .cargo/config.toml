@@ -1,0 +1,6 @@
+[build]
+rustflags = ["-Z", "threads=8"]
+# target = "arm-unknown-linux-gnueabihf"
+
+[unstable]
+codegen-backend = true

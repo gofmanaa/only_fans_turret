@@ -1,5 +1,5 @@
 [package]
-name = "device_server"
+name = "device-server"
 version = "0.1.0"
 edition = "2024"
 
@@ -11,7 +11,7 @@ gstream = ["gstreamer"]
 anyhow = { workspace = true }
 clap = { workspace = true }
 device = { path = "../device" }
-gstreamer = { version = "0.24.1", default-features = false, optional = true }
+gstreamer = { version = "0.25", default-features = false, optional = true }
 tokio = { workspace = true }
 tonic = { workspace = true }
 tracing = { workspace = true }

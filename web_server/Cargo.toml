@@ -1,16 +1,16 @@
 [package]
-name = "web_server"
+name = "web-server"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 anyhow = { workspace = true }
-axum = { version = "0.8.3", features = ["ws", "json", "http1"], default-features = false }
-axum-extra = { version = "0.10.1", features = ["cookie"] }
+axum = { version = "0.8", features = ["ws", "json", "http1"], default-features = false }
+axum-extra = { version = "0.12", features = ["cookie"] }
 base64 = "0.22.1"
-chrono = "0.4.42"
+chrono = "0.4"
 clap = { workspace = true }
-config = "0.15.18"
+config = "0.15"
 device = { path = "../device" }
 futures-util = "0.3"
 hmac = "0.12.1"
@@ -19,12 +19,12 @@ serde_json = "1.0"
 sha1 = "0.10.6"
 tokio = { workspace = true }
 tonic = { workspace = true }
-tower-http = { version = "0.5", features = ["fs", "cors", "trace"] }
+tower-http = { version = "0.7", features = ["fs", "cors", "trace"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-uuid = { version = "1.0", features = ["v4", "serde"] }
+uuid = { version = "1.26", features = [ "v4", "serde" ] }
 webrtc = "0.8"
-tracing-loki = "0.2.6"
-url = "2.5.7"
+tracing-loki = "0.2"
+url = "2.5"
 
 #tracing-loki = { version = "0.2.6",  default-features = false, features = ["compat-0-2-1"] }

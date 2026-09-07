@@ -9,13 +9,13 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow = { workspace = true }
-prost = "0.14.1"
+prost = "0.14"
 serde = { workspace = true }
 tokio = { workspace = true }
-tokio-serial = "5.4.5"
+tokio-serial = "5.5"
 tonic = { workspace = true }
-tonic-prost = "0.14.2"
+tonic-prost = "0.14"
 tracing = { workspace = true }
 
 [build-dependencies]
-tonic-prost-build = "0.14.2"
+tonic-prost-build = "0.14"

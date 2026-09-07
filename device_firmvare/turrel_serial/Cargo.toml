@@ -1,5 +1,5 @@
 [package]
-name = "turrel_serial"
+name = "turrel-serial"
 version = "0.1.0"
 authors = ["Olexander Hofman <gofmanaa@gmail.com>"]
 edition = "2021"
@@ -7,15 +7,15 @@ license = "MIT OR Apache-2.0"
 
 [[bin]]
 name = "turrel_serial"
-test = false    
+test = false
 bench = false
 
 [dependencies]
 panic-halt = "1.0.0"
 ufmt = { version="0.2.0" }
 nb = "1.1.0"
-embedded-hal = "1.0"
-heapless = "0.9.1"
+#embedded-hal = "1.0"
+heapless = "0.9"
 
 [dependencies.arduino-hal]
 git = "https://github.com/rahix/avr-hal"
