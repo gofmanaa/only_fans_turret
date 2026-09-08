@@ -45,10 +45,8 @@ pub fn rtp_thread(socket_addr: SocketAddr, app_state: Arc<AppState>) {
             tokio::time::sleep(Duration::from_secs(3)).await;
         }
     });
-    // -------------------------
-    // RTP packet receiver
-    // -------------------------
 
+    // RTP packet receiver
     let rtp_state = app_state.clone();
     tokio::spawn(async move {
         // Bind to UDP port where GStreamer will send RTP
@@ -71,7 +69,7 @@ pub fn rtp_thread(socket_addr: SocketAddr, app_state: Arc<AppState>) {
             match socket.recv_from(&mut buf).await {
                 Ok((n, _src)) => {
                     if rtp_state.rtp_broadcast.receiver_count() == 0 {
-                        tracing::warn!("No active RTP subscribers, skipping packet...");
+                        tracing::debug!("No active RTP subscribers, skipping packet...");
                         continue;
                     }
 

@@ -18,7 +18,6 @@ use axum::routing::{get, post};
 use clap::Parser;
 use device::pb::device_client::DeviceClient;
 use std::net::SocketAddr;
-use std::process;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -31,7 +30,6 @@ use tracing::{error, info};
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use url::Url;
 use webrtc::api::APIBuilder;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::MediaEngine;
@@ -42,12 +40,12 @@ use webrtc::interceptor::registry::Registry;
 #[derive(Parser)]
 struct Cli {
     #[clap(short, long, default_value = "0.0.0.0:8080", env = "SERVER_ADDR")]
-    servet_addr: SocketAddr,
+    server_addr: SocketAddr,
 
     #[clap(
         short,
         long,
-        default_value = "grpc://127.0.0.1:5001",
+        default_value = "http://127.0.0.1:5001",
         env = "DEVICE_SERVER_ADDR"
     )]
     device_server: String,
@@ -58,26 +56,23 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let (layer, task) = tracing_loki::builder()
-        .label("host", "mine")?
-        .extra_field("pid", format!("{}", process::id()))?
-        .http_header("X-Scope-OrgID", "tenant1")?
-        .build_url(Url::parse("http://0.0.0.0:3100").unwrap())?;
+    // let (layer, task) = tracing_loki::builder()
+    //     .label("host", "mine")?
+    //     .extra_field("pid", format!("{}", process::id()))?
+    //     .http_header("X-Scope-OrgID", "tenant1")?
+    //     .build_url(Url::parse("http://0.0.0.0:3100").unwrap())?;
     tracing_subscriber::registry()
-        .with(layer)
+        //.with(layer)
         .with(tracing_subscriber::fmt::Layer::new())
         .with(EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("info")))
         .init();
 
-    tracing_subscriber::fmt::init();
-    tokio::spawn(task);
+    // tokio::spawn(task);
 
     let cli = Cli::parse();
     let web_config = WebConfig::new()?;
 
-    // -------------------------
     // WebRTC API setup
-    // -------------------------
     let mut m = MediaEngine::default();
     m.register_default_codecs()?;
 
@@ -95,29 +90,36 @@ async fn main() -> anyhow::Result<()> {
             .build(),
     );
 
-    let device_gpc_client = connect_device_server(&cli.device_server).await?;
+    let device_grpc_client = connect_device_server(&cli.device_server).await?;
 
-    let state = Arc::new(AppState::new(api, device_gpc_client, web_config));
+    let state = Arc::new(AppState::new(api, device_grpc_client, web_config));
 
     state.start_background_tasks();
 
     rtp_thread(cli.rtp_addr, state.clone());
 
     let web_dir = std::env::current_dir()?.join("web");
+    info!("Current directory: {:?}", std::env::current_dir()?);
+    info!("Web directory: {}", web_dir.display());
+    info!("Web directory exists: {}", web_dir.exists());
 
     let app = Router::new()
         .route("/", get(serve_index))
         .route("/ws", get(websocket_handler))
         .route("/sdp", post(handle_sdp_offer))
         .route("/turn", post(get_turn_credentials))
-        .nest_service("/static", ServeDir::new(web_dir))
+        .nest_service("/static", ServeDir::new(web_dir.clone()))
+        .route_service(
+            "/favicon.ico",
+            ServeDir::new(web_dir).append_index_html_on_directories(true),
+        )
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind(cli.servet_addr.to_owned()).await?;
+    let listener = tokio::net::TcpListener::bind(cli.server_addr).await?;
 
-    info!("Server starting on {}", cli.servet_addr);
+    info!("Server starting on {}", cli.server_addr);
 
     axum::serve(listener, app.into_make_service()).await?;
 
@@ -157,5 +159,9 @@ async fn connect_device_server(
             }
         }
     }
-    unreachable!();
+
+    Err(anyhow!(
+        "Failed to connect to device server {}",
+        device_server
+    ))
 }

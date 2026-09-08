@@ -1,4 +1,5 @@
 pub mod action_service;
+pub mod cameraonly_server;
 pub mod grpc_server;
 
 pub mod actions;

@@ -88,8 +88,7 @@ impl UserSession {
     }
 }
 
-// ===== Queue Management =====
-
+// Queue Management
 #[derive(Debug, Default)]
 pub struct AccessQueue {
     queue: VecDeque<Uuid>,

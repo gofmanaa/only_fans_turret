@@ -1,69 +1,74 @@
 use crate::actions::Action;
 use anyhow::anyhow;
-use std::marker::PhantomData;
-use std::{path::Path, sync::Arc, thread, time::Duration};
-use tokio::sync::oneshot;
-use tokio::time::sleep;
+use std::{marker::PhantomData, path::Path, sync::Arc, thread, time::Duration};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    sync::Mutex,
-    time::Instant,
+    sync::{Mutex, oneshot},
+    time::{Instant, sleep},
 };
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
 use tracing::{error, info, warn};
 
-pub struct Turret;
-
 const ACTION_COOL_DOWN: Duration = Duration::from_millis(300);
 
+pub struct Turret;
+pub struct CameraOnly;
+
 impl Turret {
-    /// Actions are converted into serial port commands
-    fn action_to_command(action: Action) -> String {
+    fn action_to_command(action: Action) -> &'static str {
         match action {
-            Action::Right => "H-1".to_string(),
-            Action::Left => "H1".to_string(),
-            Action::Up => "V-1".to_string(),
-            Action::Down => "V1".to_string(),
-            Action::Fire => "FIRE".to_string(),
+            Action::Right => "H-1",
+            Action::Left => "H1",
+            Action::Up => "V-1",
+            Action::Down => "V1",
+            Action::Fire => "FIRE",
         }
     }
 }
 
-pub struct ActionService<D> {
-    writer: Arc<Mutex<tokio::io::WriteHalf<SerialStream>>>,
-    last_action: Arc<Mutex<Option<Instant>>>,
-    device: PhantomData<D>,
-    stream_handler: Arc<Mutex<Option<VideoStreamerHandle>>>,
+struct DeviceState {
+    writer: Option<tokio::io::WriteHalf<SerialStream>>,
+    last_action: Option<Instant>,
+    stream_handler: Option<VideoStreamerHandle>,
     stream_factory: Option<Box<dyn Fn() -> VideoStreamerHandle + Send + Sync>>,
 }
 
-impl ActionService<Turret> {
-    /// Create a new ActionService and start reading Arduino output
-    #[allow(dead_code)]
+pub struct ActionService<D> {
+    state: Arc<Mutex<DeviceState>>,
+    device: PhantomData<D>,
+}
+
+impl<D> ActionService<D> {
+    /// Create service with serial device.
     pub async fn new(
         path: &Path,
         baud_rate: u32,
         stream_factory: Option<Box<dyn Fn() -> VideoStreamerHandle + Send + Sync>>,
     ) -> anyhow::Result<Self> {
-        info!("Open serial port at {}", path.display());
+        info!("Opening serial port at {}", path.display());
 
-        let port_stream = connect_devic_retry(path, baud_rate).await?;
-
-        // Split serial stream into reader and writer
+        let port_stream = connect_device_retry(path, baud_rate).await?;
         let (reader, writer) = tokio::io::split(port_stream);
-        let writer = Arc::new(Mutex::new(writer));
 
-        // Spawn background task to read Arduino output
         tokio::spawn(async move {
-            info!("Starting Arduino Reader");
+            info!("Starting Arduino reader");
+
             let mut reader = BufReader::new(reader);
             let mut line = String::new();
 
             loop {
                 line.clear();
+
                 match reader.read_line(&mut line).await {
-                    Ok(0) => break, // port closed
-                    Ok(_) => info!("Arduino: {}", line.trim()),
+                    Ok(0) => {
+                        info!("Arduino serial port closed");
+                        break;
+                    }
+
+                    Ok(_) => {
+                        info!("Arduino: {}", line.trim());
+                    }
+
                     Err(e) => {
                         warn!("Serial read error: {}", e);
                         break;
@@ -73,76 +78,112 @@ impl ActionService<Turret> {
         });
 
         Ok(Self {
-            writer,
-            last_action: Arc::new(Mutex::new(None)),
+            state: Arc::new(Mutex::new(DeviceState {
+                writer: Some(writer),
+                last_action: None,
+                stream_handler: None,
+                stream_factory,
+            })),
             device: PhantomData,
-            stream_handler: Arc::new(Mutex::new(None)),
-            stream_factory,
         })
     }
 
-    /// Try to send an action if cooldown passed
-    pub async fn send_action(&self, action: Action) -> anyhow::Result<()> {
-        let mut last = self.last_action.lock().await;
-        let now = Instant::now();
-
-        if let Some(last_time) = *last
-            && now.duration_since(last_time) < ACTION_COOL_DOWN
-        {
-            warn!("Action {:?} rejected: cooldown active", action);
-            return Err(anyhow!("Action {:?} rejected due to cooldown", action));
+    /// Create service without serial device.
+    ///
+    /// Useful for CameraOnly.
+    pub fn new_stream(stream_factory: Box<dyn Fn() -> VideoStreamerHandle + Send + Sync>) -> Self {
+        Self {
+            state: Arc::new(Mutex::new(DeviceState {
+                writer: None,
+                last_action: None,
+                stream_handler: None,
+                stream_factory: Some(stream_factory),
+            })),
+            device: PhantomData,
         }
-
-        *last = Some(now);
-
-        let command_str = Self::action_to_command(action);
-        info!("Sending action {:?} as command {}", action, command_str);
-
-        // Write command to Arduino
-        let mut writer = self.writer.lock().await;
-        let command = format!("{}\n", command_str);
-        writer.write_all(command.as_bytes()).await?;
-        writer.flush().await?; // ensure immediate send
-
-        Ok(())
-    }
-
-    fn action_to_command(action: Action) -> String {
-        Turret::action_to_command(action)
     }
 
     pub async fn start_stream(&self) -> anyhow::Result<()> {
-        let mut handler = self.stream_handler.lock().await;
-        if handler.is_some() {
+        let mut state = self.state.lock().await;
+
+        if state.stream_handler.is_some() {
             info!("Stream already running");
             return Ok(());
         }
 
-        if let Some(factory) = &self.stream_factory {
-            let nwe_handle = factory(); // call closure
-            *handler = Some(nwe_handle);
-            info!("Video stream started via closure");
-        } else {
+        let Some(factory) = state.stream_factory.as_ref() else {
             warn!("No stream factory configured");
-        }
+            return Ok(());
+        };
+
+        let handle = factory();
+
+        state.stream_handler = Some(handle);
+
+        info!("Video stream started");
 
         Ok(())
     }
 
     pub async fn stop_stream(&self) -> anyhow::Result<()> {
-        let mut handler = self.stream_handler.lock().await;
-        if let Some(handle) = handler.take() {
-            drop(handle);
-            info!("Video streamer stopped and handle dropped");
-        } else {
-            warn!("No stream running to stop");
-        }
+        let handle = {
+            let mut state = self.state.lock().await;
+
+            match state.stream_handler.take() {
+                Some(handle) => handle,
+
+                None => {
+                    warn!("No stream running to stop");
+                    return Ok(());
+                }
+            }
+        };
+
+        // tokio::task::spawn_blocking(move || {
+        drop(handle);
+        // })
+        // .await?;
+
+        info!("Video streamer stopped");
+
         Ok(())
     }
 }
 
-#[allow(dead_code)]
-async fn connect_devic_retry(path: &Path, baud_rate: u32) -> anyhow::Result<SerialStream> {
+impl ActionService<Turret> {
+    pub async fn send_action(&self, action: Action) -> anyhow::Result<()> {
+        let now = Instant::now();
+
+        let mut state = self.state.lock().await;
+
+        if let Some(last_time) = state.last_action
+            && now.duration_since(last_time) < ACTION_COOL_DOWN
+        {
+            warn!("Action {:?} rejected: cooldown active", action);
+
+            return Err(anyhow!("Action {:?} rejected due to cooldown", action));
+        }
+
+        let writer = state
+            .writer
+            .as_mut()
+            .ok_or_else(|| anyhow!("Serial device is not connected"))?;
+
+        let command_str = Turret::action_to_command(action);
+        let command = format!("{command_str}\n");
+
+        info!("Sending action {:?} as command {}", action, command_str);
+
+        writer.write_all(command.as_bytes()).await?;
+        writer.flush().await?;
+
+        state.last_action = Some(now);
+
+        Ok(())
+    }
+}
+
+async fn connect_device_retry(path: &Path, baud_rate: u32) -> anyhow::Result<SerialStream> {
     const MAX_RETRIES: u32 = 100;
     const RETRY_DELAY: Duration = Duration::from_secs(2);
 
@@ -152,6 +193,7 @@ async fn connect_devic_retry(path: &Path, baud_rate: u32) -> anyhow::Result<Seri
                 info!("Connected to device at {}", path.display());
                 return Ok(client);
             }
+
             Err(e) => {
                 warn!(
                     "Failed to connect to device {} (attempt {}): {}",
@@ -160,7 +202,9 @@ async fn connect_devic_retry(path: &Path, baud_rate: u32) -> anyhow::Result<Seri
                     e
                 );
 
-                sleep(RETRY_DELAY).await;
+                if attempt < MAX_RETRIES {
+                    sleep(RETRY_DELAY).await;
+                }
             }
         }
     }
@@ -179,6 +223,7 @@ pub struct VideoStreamerHandle {
 impl VideoStreamerHandle {
     fn stop_video_stream(&mut self) {
         info!("Sending stop signal to video thread...");
+
         if let Some(tx) = self.stop_tx.take() {
             let _ = tx.send(());
         }
@@ -189,8 +234,6 @@ impl VideoStreamerHandle {
             } else {
                 info!("Video thread stopped cleanly.");
             }
-        } else {
-            warn!("Video thread handle already taken or stopped.");
         }
     }
 }

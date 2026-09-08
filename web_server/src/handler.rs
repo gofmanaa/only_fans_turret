@@ -29,13 +29,13 @@ pub async fn serve_index(jar: CookieJar) -> impl IntoResponse {
         .path("/")
         .secure(true)
         .http_only(true)
+        .same_site(axum_extra::extract::cookie::SameSite::Lax)
         .build();
 
     (jar.add(cookie), Html(include_str!("../web/index.html")))
 }
 
-// ===== WebSocket Handler =====
-
+//  WebSocket Handler
 pub(crate) async fn websocket_handler(
     ws: WebSocketUpgrade,
     State(state): State<Arc<AppState>>,
@@ -62,7 +62,7 @@ async fn handle_websocket(socket: WebSocket, state: Arc<AppState>, user_id: Uuid
     state.add_user(user_session).await;
 
     let (mut ws_sender, mut ws_receiver) = socket.split();
-    let (tx, mut rx) = mpsc::channel::<Message>(100); // Channel for sending messages to this specific user
+    let (tx, mut rx) = mpsc::channel::<Message>(2); // Channel for sending messages to this specific user
 
     // Store the sender for this user
     state.user_ws_senders.write().await.insert(user_id, tx);

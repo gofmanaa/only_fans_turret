@@ -1,10 +1,7 @@
-use crate::gst_v8_stream::gstream::Vp8Streamer;
 use device::action_service::VideoStreamerHandle;
-use std::net::{SocketAddr, ToSocketAddrs};
+use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
 use tokio::sync::oneshot;
 use tracing::{error, info};
 
@@ -51,10 +48,10 @@ pub mod gstream {
             let capsfilter = gst::ElementFactory::make("capsfilter")
                 .property(
                     "caps",
-                    &gst::Caps::builder("video/x-raw")
+                    &gst::Caps::builder("video/x-raw") // 640x360
                         .field("width", 640)
-                        .field("height", 360)
-                        .field("framerate", gst::Fraction::new(15, 1))
+                        .field("height", 480)
+                        .field("framerate", gst::Fraction::new(30, 1)) // 15
                         .build(),
                 )
                 .build()
@@ -139,88 +136,46 @@ pub mod gstream {
     }
 }
 
-pub fn video_stream_start(video_dev: PathBuf, v8stream_addr: &str) -> VideoStreamerHandle {
+pub fn video_stream_start(video_dev: PathBuf, host: SocketAddr) -> VideoStreamerHandle {
     let (stop_tx, stop_rx) = oneshot::channel();
-    let stream_addr = resolve_with_retry(v8stream_addr);
 
-    info!(
-        "Video device: {}, stream to {}",
-        video_dev.display(),
-        stream_addr
-    );
+    info!("Video device: {}, stream to {}", video_dev.display(), host);
 
-    let streamer = Arc::new(
-        Vp8Streamer::new(video_dev.to_str().unwrap(), stream_addr)
-            .expect("Failed to create VP8 video streamer"),
-    );
+    let device = video_dev
+        .to_str()
+        .expect("Video device path is not valid UTF-8")
+        .to_owned();
 
-    let handle = {
-        let streamer = Arc::clone(&streamer);
-
-        thread::spawn(move || {
-            if let Err(e) = streamer.start() {
-                error!("Failed to start streamer: {}", e);
-                return;
-            }
-
-            info!("Streamer started and running...");
-
-            loop {
-                match stop_rx.blocking_recv() {
-                    Ok(()) => {
-                        info!("Stop signal received in video thread.");
-                        break;
-                    }
-                    Err(_) => {
-                        info!("Stop channel closed unexpectedly.");
-                        break;
-                    }
-                }
-            }
-
-            if let Err(e) = streamer.stop() {
-                error!("Failed to stop streamer: {}", e);
-            } else {
-                info!("Streamer stopped gracefully.");
-            }
-        })
+    let streamer = match gstream::Vp8Streamer::new(&device, host) {
+        Ok(streamer) => streamer,
+        Err(e) => {
+            panic!("Failed to create VP8 video streamer: {e}");
+        }
     };
+
+    let handle = thread::spawn(move || {
+        if let Err(e) = streamer.start() {
+            error!("Failed to start streamer: {}", e);
+            return;
+        }
+        info!("Streamer started and running...");
+        match stop_rx.blocking_recv() {
+            Ok(()) => {
+                info!("Stop signal received in video thread.");
+            }
+            Err(_) => {
+                info!("Stop channel closed unexpectedly.");
+            }
+        }
+        if let Err(e) = streamer.stop() {
+            error!("Failed to stop streamer: {}", e);
+        } else {
+            info!("Streamer stopped gracefully.");
+        }
+    });
 
     VideoStreamerHandle {
         stop_tx: Some(stop_tx),
         handle: Some(handle),
     }
-}
-
-fn resolve_with_retry(addr: &str) -> SocketAddr {
-    const MAX_RETRIES: u32 = 100;
-    const RETRY_DELAY: Duration = Duration::from_secs(2);
-
-    for attempt in 1..=MAX_RETRIES {
-        match addr.to_socket_addrs() {
-            Ok(mut iter) => {
-                if let Some(addr) = iter.next() {
-                    return addr;
-                } else {
-                    error!(
-                        "No addresses resolved for '{}' on attempt {}/{}",
-                        addr, attempt, MAX_RETRIES
-                    );
-                }
-            }
-            Err(e) => {
-                error!(
-                    "Failed to resolve '{}', attempt {}/{}: {}",
-                    addr, attempt, MAX_RETRIES, e
-                );
-            }
-        }
-
-        thread::sleep(RETRY_DELAY);
-    }
-
-    panic!(
-        "Failed to resolve '{}' after {} attempts",
-        addr, MAX_RETRIES
-    );
 }

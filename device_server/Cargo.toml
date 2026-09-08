@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = []
+default = ["turret"]
+turret = []
+cameraonly = ["gstream"]
 gstream = ["gstreamer"]
 
 [dependencies]
